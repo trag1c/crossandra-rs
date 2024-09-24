@@ -190,18 +190,16 @@ impl<'a> Default for Crossandra<'a> {
 
 fn generate_tree(literals: &HashMap<&str, &str>) -> Tree {
     let mut sorted_items: Vec<_> = literals.iter().collect();
-    sorted_items.sort_by_key(|(k, _)| -(k.len() as isize));
+    sorted_items.sort_by(|(k1, _), (k2, _)| k2.len().cmp(&k1.len()));
 
     let mut root = Tree::Node(HashMap::new());
 
     for (k, v) in sorted_items {
         let mut current = &mut root;
 
-        for c in k.chars().take(k.len() - 1) {
+        for c in k[..k.len() - 1].chars() {
             if let Tree::Node(ref mut map) = current {
-                current = map
-                    .entry(Some(c))
-                    .or_insert(Tree::Node(HashMap::new()));
+                current = map.entry(Some(c)).or_insert(Tree::Node(HashMap::new()));
             }
         }
 
