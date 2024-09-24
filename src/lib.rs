@@ -18,7 +18,7 @@ struct Token {
 
 pub struct Crossandra<'a> {
     literals: HashMap<&'a str, &'a str>,
-    patterns: HashMap<&'a str, Regex>,
+    patterns: Vec<(String, Regex)>,
     convert_crlf: bool,
     ignore_whitespace: bool,
     ignored_characters: Vec<char>,
@@ -29,7 +29,7 @@ pub struct Crossandra<'a> {
 impl<'a> Crossandra<'a> {
     pub fn new(
         literals: HashMap<&'a str, &'a str>,
-        patterns: HashMap<&'a str, &str>,
+        patterns: Vec<(String, String)>,
         ignored_characters: Vec<char>,
         convert_crlf: bool,
         ignore_whitespace: bool,
@@ -131,10 +131,7 @@ impl<'a> Crossandra<'a> {
         self
     }
 
-    pub fn with_patterns(
-        mut self,
-        patterns: HashMap<&'a str, &'a str>,
-    ) -> Result<Self, regex::Error> {
+    pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, regex::Error> {
         self.patterns = compile_patterns(patterns)?;
         Ok(self)
     }
@@ -163,10 +160,7 @@ impl<'a> Crossandra<'a> {
         self.literals = flip_hashmap(literals);
     }
 
-    pub fn set_patterns(
-        &mut self,
-        patterns: HashMap<&'a str, &'a str>,
-    ) -> Result<(), regex::Error> {
+    pub fn set_patterns(&mut self, patterns: Vec<(String, String)>) -> Result<(), regex::Error> {
         self.patterns = compile_patterns(patterns)?;
         Ok(())
     }
@@ -190,15 +184,7 @@ impl<'a> Crossandra<'a> {
 
 impl<'a> Default for Crossandra<'a> {
     fn default() -> Self {
-        Self::new(
-            HashMap::new(),
-            HashMap::new(),
-            Vec::new(),
-            true,
-            false,
-            false,
-        )
-        .unwrap()
+        Self::new(HashMap::new(), Vec::new(), Vec::new(), true, false, false).unwrap()
     }
 }
 
@@ -241,11 +227,9 @@ fn flip_hashmap<'a>(hm: HashMap<&'a str, &'a str>) -> HashMap<&'a str, &'a str> 
     hm.into_iter().map(|(k, v)| (v, k)).collect()
 }
 
-fn compile_patterns<'a>(
-    hm: HashMap<&'a str, &str>,
-) -> Result<HashMap<&'a str, Regex>, regex::Error> {
+fn compile_patterns(hm: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, regex::Error> {
     hm.into_iter()
-        .map(|(key, val)| Regex::new(val).map(|regex| (key, regex)))
+        .map(|(key, val)| Regex::new(&val).map(|regex| (key, regex)))
         .collect()
 }
 
