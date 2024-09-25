@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Display,
     iter::{once, Chain, Once, Take},
     str::Chars,
 };
@@ -18,6 +19,15 @@ enum Tree {
 struct Token {
     pub name: String,
     pub value: String,
+}
+
+#[derive(Debug)]
+pub struct TokenizationError(char);
+
+impl Display for TokenizationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid token {:?}", self.0)
+    }
 }
 
 pub struct Crossandra<'a> {
@@ -82,7 +92,7 @@ impl<'a> Crossandra<'a> {
             .collect()
     }
 
-    pub fn tokenize(&self, source: &str) -> Result<Vec<Token>, ()> {
+    pub fn tokenize(&self, source: &str) -> Result<Vec<Token>, TokenizationError> {
         let source = self.prepare_source(source);
         let ignored = self.prepare_ignored();
         if self.can_use_fast_mode() {
@@ -100,7 +110,7 @@ impl<'a> Crossandra<'a> {
         &self,
         source: &str,
         ignored_characters: &HashSet<char>,
-    ) -> Result<Vec<Token>, ()> {
+    ) -> Result<Vec<Token>, TokenizationError> {
         let mut tokens: Vec<Token> = Vec::new();
         let mut chars = source.chars();
         let chunk_size = 5; // calculate this before reaching core
@@ -136,7 +146,7 @@ impl<'a> Crossandra<'a> {
             }
 
             if !(applied_rule || self.suppress_unknown) {
-                return Err(());
+                return Err(TokenizationError(handling_result.unwrap_err()));
             }
         }
         Ok(tokens)
@@ -191,7 +201,7 @@ impl<'a> Crossandra<'a> {
         source: &str,
         ignored_characters: &HashSet<char>,
         literal_map: &HashMap<char, &str>,
-    ) -> Result<Vec<Token>, ()> {
+    ) -> Result<Vec<Token>, TokenizationError> {
         let mut tokens: Vec<Token> = Vec::new();
         for char in source.chars() {
             if ignored_characters.contains(&char) {
@@ -204,7 +214,7 @@ impl<'a> Crossandra<'a> {
                 }),
                 None => {
                     if !self.suppress_unknown {
-                        return Err(());
+                        return Err(TokenizationError(char));
                     }
                 }
             }
