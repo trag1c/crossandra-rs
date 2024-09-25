@@ -128,6 +128,7 @@ impl<'a> Crossandra<'a> {
 
     pub fn with_literals(mut self, literals: HashMap<&'a str, &'a str>) -> Self {
         self.literals = flip_hashmap(literals);
+        self.tree = generate_tree(&self.literals);
         self
     }
 
@@ -158,6 +159,7 @@ impl<'a> Crossandra<'a> {
 
     pub fn set_literals(&mut self, literals: HashMap<&'a str, &'a str>) {
         self.literals = flip_hashmap(literals);
+        self.tree = generate_tree(&self.literals);
     }
 
     pub fn set_patterns(&mut self, patterns: Vec<(String, String)>) -> Result<(), regex::Error> {
