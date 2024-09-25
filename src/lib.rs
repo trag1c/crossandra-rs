@@ -16,7 +16,7 @@ enum Tree {
 }
 
 #[derive(Debug)]
-struct Token {
+pub struct Token {
     pub name: String,
     pub value: String,
 }
