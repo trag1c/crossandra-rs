@@ -1,4 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    iter::{once, Chain, Once, Take},
+    str::Chars,
+};
 
 use regex::Regex;
 
@@ -84,7 +88,7 @@ impl<'a> Crossandra<'a> {
         if self.can_use_fast_mode() {
             self.tokenize_fast(&source, &ignored, &self.prepare_literal_map())
         } else {
-            self.tokenize_core(source, ignored)
+            self.tokenize_core(&source, &ignored)
         }
     }
 
@@ -94,10 +98,92 @@ impl<'a> Crossandra<'a> {
 
     fn tokenize_core(
         &self,
-        source: String,
-        ignored_characters: HashSet<char>,
+        source: &str,
+        ignored_characters: &HashSet<char>,
     ) -> Result<Vec<Token>, ()> {
-        todo!("tokenize_core")
+        let mut tokens: Vec<Token> = Vec::new();
+        let mut chars = source.chars();
+        let chunk_size = 5; // calculate this before reaching core
+
+        while let Some(c) = &chars.next() {
+            if ignored_characters.contains(c) {
+                continue;
+            }
+            let handling_result = self.handle(once(*c).chain(chars.clone().take(chunk_size - 1)));
+            if let Ok((name, value, size)) = handling_result {
+                tokens.push(Token { name, value });
+                for _ in 0..size - 1 {
+                    chars.next();
+                }
+                continue;
+            }
+
+            let remaining_source = &chars.clone().collect::<String>();
+            let mut applied_rule = false;
+            for (name, pattern) in &self.patterns {
+                if let Some(tok) = pattern.find(remaining_source) {
+                    let value = tok;
+                    tokens.push(Token {
+                        name: name.clone(),
+                        value: value.as_str().to_string(),
+                    });
+                    for _ in 0..value.len() - 1 {
+                        chars.next();
+                    }
+                    applied_rule = true;
+                    break;
+                }
+            }
+
+            if !(applied_rule || self.suppress_unknown) {
+                return Err(());
+            }
+        }
+        Ok(tokens)
+    }
+
+    fn handle(
+        &self,
+        chunk: Chain<Once<char>, Take<Chars>>,
+    ) -> Result<(String, String, usize), char> {
+        let mut break_path: Option<(&String, usize)> = None;
+        let mut tree = &self.tree;
+        let joined_chunk: String = chunk.clone().collect();
+
+        for (i, v) in chunk.enumerate() {
+            if let Tree::Node(ref node) = tree {
+                if let Some(t) = node.get(&None) {
+                    if let Tree::Leaf(token_name) = t {
+                        break_path = Some((token_name, i));
+                    } else {
+                        unreachable!("key None can never lead to a Node")
+                    }
+                };
+
+                match node.get(&Some(v)) {
+                    Some(Tree::Leaf(token_name)) => {
+                        return Ok((token_name.to_string(), joined_chunk[..i].to_string(), i + 1))
+                    }
+                    Some(new_tree) => tree = new_tree,
+                    None => match node.get(&None) {
+                        None => break,
+                        Some(Tree::Leaf(token_name)) => {
+                            return Ok((token_name.to_string(), joined_chunk[..i].to_string(), i))
+                        }
+                        _ => unreachable!("key None can never lead to a Node"),
+                    },
+                }
+            }
+        }
+
+        match break_path {
+            // TODO: replace String::new() with a self.literals fetch
+            Some((s, u)) => Ok((String::new(), s.to_string(), u)),
+            None => Err(joined_chunk
+                .chars()
+                .next()
+                .expect("the chunk will never be empty")),
+        }
     }
 
     fn tokenize_fast(
