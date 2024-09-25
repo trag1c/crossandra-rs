@@ -222,32 +222,38 @@ impl<'a> Crossandra<'a> {
         Ok(tokens)
     }
 
+    #[must_use]
     pub fn with_literals(mut self, literals: HashMap<&'a str, &'a str>) -> Self {
         self.literals = flip_hashmap(literals);
         self.tree = generate_tree(&self.literals);
         self
     }
 
+    #[must_use]
     pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, regex::Error> {
         self.patterns = compile_patterns(patterns)?;
         Ok(self)
     }
 
+    #[must_use]
     pub fn with_ignored_characters(mut self, ignored_characters: Vec<char>) -> Self {
         self.ignored_characters = ignored_characters;
         self
     }
 
+    #[must_use]
     pub fn with_convert_crlf(mut self, convert_crlf: bool) -> Self {
         self.convert_crlf = convert_crlf;
         self
     }
 
+    #[must_use]
     pub fn with_ignore_whitespace(mut self, ignore_whitespace: bool) -> Self {
         self.ignore_whitespace = ignore_whitespace;
         self
     }
 
+    #[must_use]
     pub fn with_suppress_unknown(mut self, suppress_unknown: bool) -> Self {
         self.suppress_unknown = suppress_unknown;
         self
