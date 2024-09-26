@@ -132,12 +132,11 @@ impl<'a> Crossandra<'a> {
             let mut applied_rule = false;
             for (name, pattern) in &self.patterns {
                 if let Some(tok) = pattern.find(&remaining_source) {
-                    let value = tok;
                     tokens.push(Token {
                         name: name.clone(),
-                        value: value.as_str().to_string(),
+                        value: tok.as_str().to_string(),
                     });
-                    for _ in 0..value.len() - 1 {
+                    for _ in 0..tok.len() - 1 {
                         chars.next();
                     }
                     applied_rule = true;
