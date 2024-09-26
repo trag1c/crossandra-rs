@@ -186,9 +186,20 @@ impl<'a> Crossandra<'a> {
             }
         }
 
-        match break_path {
-            // TODO: replace String::new() with a self.literals fetch
-            Some((s, u)) => Ok((String::new(), s.to_string(), u)),
+        if let Some((s, u)) = break_path {
+            return Ok((
+                match self.literals.get(&s.as_str()) {
+                    Some(name) => (*name).to_string(),
+                    None => String::new(),
+                },
+                s.to_string(),
+                u,
+            ));
+        }
+
+        let chunk_len = joined_chunk.len();
+        match self.literals.get(&joined_chunk.as_str()) {
+            Some(name) => Ok(((*name).to_string(), joined_chunk, chunk_len)),
             None => Err(joined_chunk
                 .chars()
                 .next()
