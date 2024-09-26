@@ -172,13 +172,17 @@ impl<'a> Crossandra<'a> {
 
                 match node.get(&Some(v)) {
                     Some(Tree::Leaf(token_name)) => {
-                        return Ok((token_name.to_string(), joined_chunk[..i].to_string(), i + 1))
+                        return Ok((
+                            token_name.to_string(),
+                            joined_chunk[..=i].to_string(),
+                            i + 1,
+                        ));
                     }
                     Some(new_tree) => tree = new_tree,
                     None => match node.get(&None) {
                         None => break,
                         Some(Tree::Leaf(token_name)) => {
-                            return Ok((token_name.to_string(), joined_chunk[..i].to_string(), i))
+                            return Ok((token_name.to_string(), joined_chunk[..i].to_string(), i));
                         }
                         _ => unreachable!("key None can never lead to a Node"),
                     },
