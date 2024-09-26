@@ -113,7 +113,7 @@ impl<'a> Crossandra<'a> {
     ) -> Result<Vec<Token>, TokenizationError> {
         let mut tokens: Vec<Token> = Vec::new();
         let mut chars = source.chars();
-        let chunk_size = 5; // calculate this before reaching core
+        let chunk_size = self.literals.keys().map(|x| x.len()).max().unwrap_or(1);
 
         while let Some(c) = &chars.next() {
             if ignored_characters.contains(c) {
