@@ -128,10 +128,10 @@ impl<'a> Crossandra<'a> {
                 continue;
             }
 
-            let remaining_source = &chars.clone().collect::<String>();
+            let remaining_source = once(*c).chain(chars.clone()).collect::<String>();
             let mut applied_rule = false;
             for (name, pattern) in &self.patterns {
-                if let Some(tok) = pattern.find(remaining_source) {
+                if let Some(tok) = pattern.find(&remaining_source) {
                     let value = tok;
                     tokens.push(Token {
                         name: name.clone(),
