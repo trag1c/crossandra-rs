@@ -1,9 +1,11 @@
 [package]
 name = "crossandra-rs"
 version = "0.1.0"
+description = "A straightforward tokenization library for seamless text processing."
+authors = ["trag1c <trag1cdev@yahoo.com>"]
+license = "MIT"
+repository = "https://github.com/trag1c/crossandra-rs"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 regex = "1.10.6"
