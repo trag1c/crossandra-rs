@@ -102,8 +102,20 @@ impl<'a> Crossandra<'a> {
         }
     }
 
-    pub fn tokenize_lines(&self, lines: Vec<&str>) -> Result<Vec<Vec<Token>>, ()> {
-        todo!("tokenize_lines")
+    pub fn tokenize_lines(&self, lines: Vec<&str>) -> Result<Vec<Vec<Token>>, TokenizationError> {
+        let ignored = self.prepare_ignored();
+        if self.can_use_fast_mode() {
+            let literal_map = &self.prepare_literal_map();
+            lines
+                .iter()
+                .map(|line| self.tokenize_fast(line, &ignored, literal_map))
+                .collect()
+        } else {
+            lines
+                .iter()
+                .map(|line| self.tokenize_core(line, &ignored))
+                .collect()
+        }
     }
 
     fn tokenize_core(
