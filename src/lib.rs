@@ -191,11 +191,12 @@ impl<'a> Crossandra<'a> {
 
         if let Some((s, u)) = break_path {
             return Ok((
-                match self.literals.get(&s.as_str()) {
-                    Some(name) => (*name).to_string(),
-                    None => String::new(),
-                },
                 s.to_string(),
+                if let Some(value) = flip_hashmap(self.literals.clone()).get(&s.as_str()) {
+                    (*value).to_string()
+                } else {
+                    return Err(s.chars().next().expect("the token will never be unnamed"));
+                },
                 u,
             ));
         }
