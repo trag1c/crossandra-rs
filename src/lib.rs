@@ -40,11 +40,11 @@ impl<'a> Tokenizer<'a> {
         ignore_whitespace: bool,
         suppress_unknown: bool,
     ) -> Result<Self, Error> {
-        let literals = flip_hashmap(literals);
+        let literals = flip_hashmap(validate_literals(literals)?);
         Ok(Self {
             tree: generate_tree(&literals),
             literals,
-            patterns: compile_patterns(patterns)?,
+            patterns: compile_patterns(validate_patterns(patterns)?)?,
             convert_crlf,
             ignored_characters,
             ignore_whitespace,
@@ -241,15 +241,16 @@ impl<'a> Tokenizer<'a> {
     }
 
     #[must_use]
-    pub fn with_literals(mut self, literals: HashMap<&'a str, &'a str>) -> Self {
-        self.literals = flip_hashmap(literals);
+    pub fn with_literals(mut self, literals: HashMap<&'a str, &'a str>) -> Result<Self, Error> {
+        self.literals = flip_hashmap(validate_literals(literals)?);
         self.tree = generate_tree(&self.literals);
-        self
+        Ok(self)
     }
 
     #[must_use]
     pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, Error> {
-        self.patterns = compile_patterns(patterns)?;
+        self.patterns = compile_patterns(validate_patterns(patterns)?)?;
+        println!("with_patterns {:?}", self.patterns);
         Ok(self)
     }
 
@@ -277,13 +278,14 @@ impl<'a> Tokenizer<'a> {
         self
     }
 
-    pub fn set_literals(&mut self, literals: HashMap<&'a str, &'a str>) {
-        self.literals = flip_hashmap(literals);
+    pub fn set_literals(&mut self, literals: HashMap<&'a str, &'a str>) -> Result<(), Error> {
+        self.literals = flip_hashmap(validate_literals(literals)?);
         self.tree = generate_tree(&self.literals);
+        Ok(())
     }
 
     pub fn set_patterns(&mut self, patterns: Vec<(String, String)>) -> Result<(), Error> {
-        self.patterns = compile_patterns(patterns)?;
+        self.patterns = compile_patterns(validate_patterns(patterns)?)?;
         Ok(())
     }
 
@@ -314,6 +316,25 @@ fn flip_hashmap<'a>(hm: HashMap<&'a str, &'a str>) -> HashMap<&'a str, &'a str> 
     hm.into_iter().map(|(k, v)| (v, k)).collect()
 }
 
+fn validate_literals<'a>(
+    literals: HashMap<&'a str, &'a str>,
+) -> Result<HashMap<&'a str, &'a str>, Error> {
+    if literals.values().any(|lit| lit.is_empty()) {
+        return Err(Error::EmptyLiteral);
+    }
+    Ok(literals)
+}
+
+fn validate_patterns(patterns: Vec<(String, String)>) -> Result<Vec<(String, String)>, Error> {
+    let mut names: HashSet<&String> = HashSet::new();
+    for (name, _) in &patterns {
+        if !names.insert(name) {
+            return Err(Error::DuplicatePattern(name.clone()));
+        }
+    }
+    Ok(patterns)
+}
+
 fn compile_patterns(hm: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
     hm.into_iter()
         .map(|(key, val)| {
@@ -326,8 +347,34 @@ fn compile_patterns(hm: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, E
 
 #[cfg(test)]
 mod tests {
-    use crate::{flip_hashmap, generate_tree, Tokenizer};
+    use crate::{flip_hashmap, generate_tree, Error, Tokenizer};
     use std::collections::HashMap;
+
+    #[test]
+    fn pattern_validation_err() {
+        let tok = Tokenizer::default()
+            .with_patterns(vec![("foo".into(), "x".into()), ("foo".into(), "y".into())]);
+        assert!(matches!(tok, Err(Error::DuplicatePattern(s)) if s == *"foo"));
+    }
+
+    #[test]
+    fn pattern_validation_ok() {
+        let tok = Tokenizer::default()
+            .with_patterns(vec![("foo".into(), "x".into()), ("fxx".into(), "y".into())]);
+        assert!(tok.is_ok());
+    }
+
+    #[test]
+    fn literal_validation_err() {
+        let tok = Tokenizer::default().with_literals(HashMap::from_iter([("x", "x"), ("y", "")]));
+        assert!(matches!(tok, Err(Error::EmptyLiteral)));
+    }
+
+    #[test]
+    fn literal_validation_ok() {
+        let tok = Tokenizer::default().with_literals(HashMap::from_iter([("x", "x"), ("", "y")]));
+        assert!(tok.is_ok());
+    }
 
     #[test]
     fn fast_mode_test() {
@@ -342,6 +389,7 @@ mod tests {
                 ("begin_loop", "["),
                 ("end_loop", "]"),
             ]))
+            .unwrap()
             .with_suppress_unknown(true);
         // println!("{:?}", tok.literals);
         // assert!(tok.can_use_fast_mode());
