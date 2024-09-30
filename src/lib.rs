@@ -21,7 +21,7 @@ pub struct Token {
     pub value: String,
 }
 
-pub struct Crossandra<'a> {
+pub struct Tokenizer<'a> {
     literals: HashMap<&'a str, &'a str>,
     patterns: Vec<(String, Regex)>,
     convert_crlf: bool,
@@ -31,7 +31,7 @@ pub struct Crossandra<'a> {
     tree: Tree,
 }
 
-impl<'a> Crossandra<'a> {
+impl<'a> Tokenizer<'a> {
     pub fn new(
         literals: HashMap<&'a str, &'a str>,
         patterns: Vec<(String, String)>,
@@ -304,7 +304,7 @@ impl<'a> Crossandra<'a> {
     }
 }
 
-impl<'a> Default for Crossandra<'a> {
+impl<'a> Default for Tokenizer<'a> {
     fn default() -> Self {
         Self::new(HashMap::new(), Vec::new(), Vec::new(), true, false, false).unwrap()
     }
@@ -326,12 +326,12 @@ fn compile_patterns(hm: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, E
 
 #[cfg(test)]
 mod tests {
-    use crate::{flip_hashmap, generate_tree, Crossandra};
+    use crate::{flip_hashmap, generate_tree, Tokenizer};
     use std::collections::HashMap;
 
     #[test]
     fn fast_mode_test() {
-        let tok = Crossandra::default()
+        let tok = Tokenizer::default()
             .with_literals(HashMap::from_iter([
                 ("add", "+"),
                 ("sub", "-"),
