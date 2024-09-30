@@ -39,7 +39,7 @@ impl<'a> Crossandra<'a> {
         convert_crlf: bool,
         ignore_whitespace: bool,
         suppress_unknown: bool,
-    ) -> Result<Self, regex::Error> {
+    ) -> Result<Self, Error> {
         let literals = flip_hashmap(literals);
         Ok(Self {
             tree: generate_tree(&literals),
@@ -248,7 +248,7 @@ impl<'a> Crossandra<'a> {
     }
 
     #[must_use]
-    pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, regex::Error> {
+    pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, Error> {
         self.patterns = compile_patterns(patterns)?;
         Ok(self)
     }
@@ -282,7 +282,7 @@ impl<'a> Crossandra<'a> {
         self.tree = generate_tree(&self.literals);
     }
 
-    pub fn set_patterns(&mut self, patterns: Vec<(String, String)>) -> Result<(), regex::Error> {
+    pub fn set_patterns(&mut self, patterns: Vec<(String, String)>) -> Result<(), Error> {
         self.patterns = compile_patterns(patterns)?;
         Ok(())
     }
@@ -314,9 +314,13 @@ fn flip_hashmap<'a>(hm: HashMap<&'a str, &'a str>) -> HashMap<&'a str, &'a str> 
     hm.into_iter().map(|(k, v)| (v, k)).collect()
 }
 
-fn compile_patterns(hm: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, regex::Error> {
+fn compile_patterns(hm: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
     hm.into_iter()
-        .map(|(key, val)| Regex::new(&val).map(|regex| (key, regex)))
+        .map(|(key, val)| {
+            Regex::new(&val)
+                .map(|regex| (key, regex))
+                .map_err(Error::InvalidRegex)
+        })
         .collect()
 }
 

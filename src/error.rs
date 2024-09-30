@@ -3,6 +3,7 @@ pub enum Error {
     BadToken(char),
     DuplicatePattern(String),
     EmptyLiteral,
+    InvalidRegex(regex::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -11,6 +12,7 @@ impl std::fmt::Display for Error {
             Self::BadToken(c) => write!(f, "invalid token {c:?}"),
             Self::DuplicatePattern(name) => write!(f, "duplicate pattern {name:?}"),
             Self::EmptyLiteral => write!(f, "literals cannot be empty"),
+            Self::InvalidRegex(err) => err.fmt(f),
         }
     }
 }
