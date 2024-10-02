@@ -13,6 +13,8 @@ use error::Error;
 mod tree;
 use tree::{generate_tree, Tree};
 
+mod patterns;
+
 const WHITESPACE: [char; 6] = [' ', '\x0c', '\t', '\x0b', '\r', '\n'];
 
 #[derive(Debug)]
@@ -44,7 +46,7 @@ impl<'a> Tokenizer<'a> {
         Ok(Self {
             tree: generate_tree(&literals),
             literals,
-            patterns: compile_patterns(validate_patterns(patterns)?)?,
+            patterns: patterns::compile(patterns::validate(patterns)?)?,
             convert_crlf,
             ignored_characters,
             ignore_whitespace,
@@ -249,7 +251,7 @@ impl<'a> Tokenizer<'a> {
 
     #[must_use]
     pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, Error> {
-        self.patterns = compile_patterns(validate_patterns(patterns)?)?;
+        self.patterns = patterns::compile(patterns::validate(patterns)?)?;
         println!("with_patterns {:?}", self.patterns);
         Ok(self)
     }
@@ -285,7 +287,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     pub fn set_patterns(&mut self, patterns: Vec<(String, String)>) -> Result<(), Error> {
-        self.patterns = compile_patterns(validate_patterns(patterns)?)?;
+        self.patterns = patterns::compile(patterns::validate(patterns)?)?;
         Ok(())
     }
 
@@ -323,27 +325,6 @@ fn validate_literals<'a>(
         return Err(Error::EmptyLiteral);
     }
     Ok(literals)
-}
-
-fn validate_patterns(patterns: Vec<(String, String)>) -> Result<Vec<(String, String)>, Error> {
-    let mut names: HashSet<&String> = HashSet::new();
-    for (name, _) in &patterns {
-        if !names.insert(name) {
-            return Err(Error::DuplicatePattern(name.clone()));
-        }
-    }
-    Ok(patterns)
-}
-
-fn compile_patterns(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
-    patterns
-        .into_iter()
-        .map(|(key, val)| {
-            Regex::new(&val)
-                .map(|regex| (key, regex))
-                .map_err(Error::InvalidRegex)
-        })
-        .collect()
 }
 
 #[cfg(test)]
