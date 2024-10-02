@@ -335,8 +335,9 @@ fn validate_patterns(patterns: Vec<(String, String)>) -> Result<Vec<(String, Str
     Ok(patterns)
 }
 
-fn compile_patterns(hm: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
-    hm.into_iter()
+fn compile_patterns(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
+    patterns
+        .into_iter()
         .map(|(key, val)| {
             Regex::new(&val)
                 .map(|regex| (key, regex))
