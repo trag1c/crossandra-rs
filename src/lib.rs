@@ -46,7 +46,7 @@ impl<'a> Tokenizer<'a> {
         Ok(Self {
             tree: generate_tree(&literals),
             literals,
-            patterns: patterns::compile(patterns::validate(patterns)?)?,
+            patterns: patterns::compile(patterns::validate(patterns::adjust(patterns))?)?,
             convert_crlf,
             ignored_characters,
             ignore_whitespace,
@@ -251,8 +251,7 @@ impl<'a> Tokenizer<'a> {
 
     #[must_use]
     pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, Error> {
-        self.patterns = patterns::compile(patterns::validate(patterns)?)?;
-        println!("with_patterns {:?}", self.patterns);
+        self.patterns = patterns::compile(patterns::validate(patterns::adjust(patterns))?)?;
         Ok(self)
     }
 
@@ -287,7 +286,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     pub fn set_patterns(&mut self, patterns: Vec<(String, String)>) -> Result<(), Error> {
-        self.patterns = patterns::compile(patterns::validate(patterns)?)?;
+        self.patterns = patterns::compile(patterns::validate(patterns::adjust(patterns))?)?;
         Ok(())
     }
 
