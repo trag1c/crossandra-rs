@@ -4,7 +4,11 @@ use regex::Regex;
 
 use crate::error::Error;
 
-pub(crate) fn validate(patterns: Vec<(String, String)>) -> Result<Vec<(String, String)>, Error> {
+pub(crate) fn prepare(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
+    compile(validate(adjust(patterns))?)
+}
+
+fn validate(patterns: Vec<(String, String)>) -> Result<Vec<(String, String)>, Error> {
     let mut names: HashSet<&String> = HashSet::new();
     for (name, _) in &patterns {
         if !names.insert(name) {
@@ -14,7 +18,7 @@ pub(crate) fn validate(patterns: Vec<(String, String)>) -> Result<Vec<(String, S
     Ok(patterns)
 }
 
-pub(crate) fn compile(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
+fn compile(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
     patterns
         .into_iter()
         .map(|(key, val)| {
@@ -25,7 +29,7 @@ pub(crate) fn compile(patterns: Vec<(String, String)>) -> Result<Vec<(String, Re
         .collect()
 }
 
-pub(crate) fn adjust(patterns: Vec<(String, String)>) -> Vec<(String, String)> {
+fn adjust(patterns: Vec<(String, String)>) -> Vec<(String, String)> {
     let pat = Regex::new(r"\^").unwrap();
     patterns
         .into_iter()
