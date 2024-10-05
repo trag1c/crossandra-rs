@@ -194,6 +194,28 @@ impl<'a> Tokenizer<'a> {
             }
         }
 
+        if let Tree::Node(ref node) = tree {
+            if let Some(t) = node.get(&None) {
+                if let Tree::Leaf(token_name) = t {
+                    break_path = Some((token_name, joined_chunk.len()));
+                } else {
+                    unreachable!("key None can never lead to a Node")
+                }
+            };
+
+            match node.get(&None) {
+                None => {}
+                Some(Tree::Leaf(token_name)) => {
+                    return Ok((
+                        token_name.to_string(),
+                        joined_chunk.to_string(),
+                        joined_chunk.len(),
+                    ));
+                }
+                _ => unreachable!("key None can never lead to a Node"),
+            }
+        }
+
         if let Some((s, u)) = break_path {
             return Ok((
                 s.to_string(),
