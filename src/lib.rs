@@ -7,6 +7,8 @@ use std::{
 
 use regex::Regex;
 
+pub mod common;
+
 mod error;
 use error::Error;
 
