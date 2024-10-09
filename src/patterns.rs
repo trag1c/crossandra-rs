@@ -29,32 +29,32 @@ fn compile(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Erro
         .collect()
 }
 
+fn force_start_anchor(pattern: &str) -> String {
+    let mut prev_char: Option<char> = None;
+
+    let anchor_indices: HashSet<usize> = pattern
+        .char_indices()
+        .filter(|(_, c)| {
+            let prev = prev_char.unwrap_or('\0');
+            prev_char = Some(*c);
+            *c == '^' && !matches!(prev, '[' | '\\')
+        })
+        .map(|(i, _)| i)
+        .collect();
+
+    format!(
+        "^({})",
+        pattern
+            .chars()
+            .enumerate()
+            .filter_map(|(i, char)| (!anchor_indices.contains(&i)).then_some(char))
+            .collect::<String>()
+    )
+}
+
 fn adjust(patterns: Vec<(String, String)>) -> Vec<(String, String)> {
-    let pat = Regex::new(r"\^").unwrap();
     patterns
         .into_iter()
-        .map(|(name, pattern)| {
-            let mut indices = HashSet::<usize>::new();
-
-            for c in pat.find_iter(&pattern) {
-                let i = c.start();
-                if i == 0 {
-                    indices.insert(0);
-                } else if let Some(c) = pattern.chars().nth(i - 1) {
-                    if !matches!(c, '[' | '\\') {
-                        indices.insert(i);
-                    }
-                }
-            }
-
-            let adjusted: String = pattern
-                .chars()
-                .enumerate()
-                .filter(|(i, _)| !indices.contains(i))
-                .map(|(_, char)| char)
-                .collect();
-
-            (name, format!("^({adjusted})"))
-        })
+        .map(|(name, pattern)| (name, force_start_anchor(&pattern)))
         .collect()
 }
