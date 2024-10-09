@@ -58,3 +58,70 @@ fn adjust(patterns: Vec<(String, String)>) -> Vec<(String, String)> {
         .map(|(name, pattern)| (name, force_start_anchor(&pattern)))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        error::Error,
+        patterns::{compile, force_start_anchor, validate},
+    };
+
+    #[test]
+    fn validate_ok() {
+        let patterns = vec![("foo".into(), String::new()), ("bar".into(), String::new())];
+        assert!(validate(patterns).is_ok());
+    }
+
+    #[test]
+    fn validate_empty_ok() {
+        assert!(validate(Vec::new()).is_ok());
+    }
+
+    #[test]
+    fn validate_err() {
+        let patterns = vec![("foo".into(), String::new()), ("foo".into(), String::new())];
+        let res = validate(patterns);
+        assert!(matches!(res, Err(Error::DuplicatePattern(s)) if s == *"foo"));
+    }
+
+    #[test]
+    fn validate_two_duplicate_keys_err() {
+        let patterns = vec![
+            ("foo".into(), String::new()),
+            ("bar".into(), String::new()),
+            ("bar".into(), String::new()),
+            ("foo".into(), String::new()),
+        ];
+        let res = validate(patterns);
+        assert!(matches!(res, Err(Error::DuplicatePattern(s)) if s == *"bar"));
+    }
+
+    #[test]
+    fn compile_ok() {
+        let patterns = vec![("foo".into(), String::new()), ("bar".into(), r"\d+".into())];
+        assert!(compile(patterns).is_ok());
+    }
+
+    #[test]
+    fn compile_err() {
+        let patterns = vec![("foo".into(), String::new()), ("bar".into(), r"+".into())];
+        assert!(matches!(compile(patterns), Err(Error::InvalidRegex(_))));
+    }
+
+    #[test]
+    fn adjust() {
+        let tests = [
+            ("", "^()"),
+            (r"\d+", r"^(\d+)"),
+            (r"^\d+", r"^(\d+)"),
+            (r"x|^y", r"^(x|y)"),
+            (r"^x|^y", r"^(x|y)"),
+            (r"^x|\^y", r"^(x|\^y)"),
+            (r"ba[^rz]", r"^(ba[^rz])"),
+            (r"^\^^[^]^", r"^(\^[^])"),
+        ];
+        for (inp, out) in tests {
+            assert_eq!(force_start_anchor(inp), out);
+        }
+    }
+}
