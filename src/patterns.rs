@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use regex::Regex;
+use fancy_regex::Regex;
 
 use crate::error::Error;
 
@@ -24,7 +24,7 @@ fn compile(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Erro
         .map(|(key, val)| {
             Regex::new(&val)
                 .map(|regex| (key, regex))
-                .map_err(Error::InvalidRegex)
+                .map_err(|e| Error::InvalidRegex(Box::new(e)))
         })
         .collect()
 }

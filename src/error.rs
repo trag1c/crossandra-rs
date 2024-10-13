@@ -3,7 +3,7 @@ pub enum Error {
     BadToken(char),
     DuplicatePattern(String),
     EmptyLiteral,
-    InvalidRegex(regex::Error),
+    InvalidRegex(Box<fancy_regex::Error>),
 }
 
 impl std::fmt::Display for Error {

@@ -5,7 +5,7 @@ use std::{
     str::Chars,
 };
 
-use regex::Regex;
+use fancy_regex::Regex;
 
 pub mod common;
 
@@ -138,12 +138,12 @@ impl<'a> Tokenizer<'a> {
             let remaining_source = once(*c).chain(chars.clone()).collect::<String>();
             let mut applied_rule = false;
             for (name, pattern) in &self.patterns {
-                if let Some(tok) = pattern.find(&remaining_source) {
+                if let Ok(Some(tok)) = pattern.find(&remaining_source) {
                     tokens.push(Token {
                         name: name.clone(),
                         value: tok.as_str().to_string(),
                     });
-                    for _ in 0..tok.len() - 1 {
+                    for _ in 0..tok.end() - 1 {
                         chars.next();
                     }
                     applied_rule = true;
