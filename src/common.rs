@@ -16,30 +16,30 @@ lazy_static! {
     pub static ref NEWLINE: (String, String) = ("newline".into(), r"\r?\n".into());
     pub static ref DIGIT: (String, String) = ("digit".into(), r"\d".into());
     pub static ref HEXDIGIT: (String, String) = ("hexdigit".into(), r"[0-9A-Fa-f]".into());
-    pub static ref INT: (String, String) = ("int".into(), INT_BASE.into());
+    pub static ref UNSIGNED_INT: (String, String) = ("unsigned_int".into(), INT_BASE.into());
     pub static ref SIGNED_INT: (String, String) =
         ("signed_int".into(), format!(r"[+\-]{INT_BASE}"));
     pub static ref DECIMAL: (String, String) = (
         "decimal".into(),
         format!(r"{INT_BASE}\.(?:[0-9]+)?|\.[0-9]+")
     );
-    pub static ref FLOAT: (String, String) = ("float".into(), FLOAT_BASE.into());
+    pub static ref UNSIGNED_FLOAT: (String, String) = ("unsigned_float".into(), FLOAT_BASE.into());
     pub static ref SIGNED_FLOAT: (String, String) =
         ("signed_float".into(), format!(r"[+\-](?:{FLOAT_BASE})"));
     pub static ref STRING: (String, String) = (
         "string".into(),
         format!("\"{STRING_BASE}\"|'{STRING_BASE}'")
     );
-    pub static ref NUMBER: (String, String) = ("number".into(), format!("{FLOAT_BASE}|{INT_BASE}"));
+    pub static ref UNSIGNED_NUMBER: (String, String) =
+        ("unsigned_number".into(), format!("{FLOAT_BASE}|{INT_BASE}"));
     pub static ref SIGNED_NUMBER: (String, String) = (
         "signed_number".into(),
         format!(r"[+\-](?:(?:{FLOAT_BASE})|{INT_BASE})")
     );
-    pub static ref ANY_INT: (String, String) = ("any_int".into(), format!(r"[+\-]?{INT_BASE}"));
-    pub static ref ANY_FLOAT: (String, String) =
-        ("any_float".into(), format!(r"[+\-]?(?:{FLOAT_BASE})"));
-    pub static ref ANY_NUMBER: (String, String) = (
-        "any_number".into(),
+    pub static ref INT: (String, String) = ("int".into(), format!(r"[+\-]?{INT_BASE}"));
+    pub static ref FLOAT: (String, String) = ("float".into(), format!(r"[+\-]?(?:{FLOAT_BASE})"));
+    pub static ref NUMBER: (String, String) = (
+        "number".into(),
         format!(r"[+\-]?(?:(?:{FLOAT_BASE})|{INT_BASE})")
     );
 }
