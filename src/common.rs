@@ -14,7 +14,7 @@ lazy_static! {
     pub static ref WORD: (String, String) = ("word".into(), r"[A-Za-z]+".into());
     pub static ref C_NAME: (String, String) = ("c_name".into(), r"[_A-Za-z][_A-Za-z\d]*".into());
     pub static ref NEWLINE: (String, String) = ("newline".into(), r"\r?\n".into());
-    pub static ref DIGIT: (String, String) = ("digit".into(), r"\d".into());
+    pub static ref DIGIT: (String, String) = ("digit".into(), r"[0-9]".into());
     pub static ref HEXDIGIT: (String, String) = ("hexdigit".into(), r"[0-9A-Fa-f]".into());
     pub static ref UNSIGNED_INT: (String, String) = ("unsigned_int".into(), INT_BASE.into());
     pub static ref SIGNED_INT: (String, String) =
