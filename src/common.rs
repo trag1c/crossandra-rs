@@ -5,7 +5,7 @@ const INT_BASE: &str = r"[0-9](?:[0-9_]*[0-9])?";
 const FLOAT_BASE: &str = r"[0-9](?:[0-9_]*[0-9])?(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)|(?:[0-9](?:[0-9_]*[0-9])?\.[0-9]*|\.[0-9]+)(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)?";
 
 lazy_static! {
-    pub static ref CHAR: (String, String) = ("char".into(), r"'(?:[^']|\\')'".into());
+    pub static ref CHAR: (String, String) = ("char".into(), r"'(?:\\'|[^'])'".into());
     pub static ref SINGLE_QUOTED_STRING: (String, String) =
         ("single_quoted_string".into(), format!("'{STRING_BASE}'"));
     pub static ref DOUBLE_QUOTED_STRING: (String, String) =
