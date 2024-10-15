@@ -63,7 +63,7 @@ fn adjust(patterns: Vec<(String, String)>) -> Vec<(String, String)> {
 mod tests {
     use crate::{
         error::Error,
-        patterns::{compile, force_start_anchor, validate},
+        patterns::{compile, force_start_anchor, prepare, validate},
     };
 
     #[test]
@@ -123,5 +123,29 @@ mod tests {
         for (inp, out) in tests {
             assert_eq!(force_start_anchor(inp), out);
         }
+    }
+
+    #[test]
+    fn prepare_ok() {
+        let Ok(patterns) = prepare(vec![("digit".into(), "[0-9]".into())]) else {
+            panic!("prepare returned an Err")
+        };
+        match &patterns[..] {
+            [(name, pat)] => {
+                assert_eq!(name, "digit");
+                assert_eq!(pat.as_str(), "^([0-9])");
+            }
+            _ => panic!("prepare returned a vec of length != 1"),
+        };
+    }
+
+    #[test]
+    fn prepare_err() {
+        assert!(prepare(vec![("digit".into(), "[0-9".into())]).is_err());
+        assert!(prepare(vec![
+            ("digit".into(), "[0-9]".into()),
+            ("digit".into(), "[0-9]".into())
+        ])
+        .is_err());
     }
 }
