@@ -50,7 +50,7 @@ mod tests {
 
     macro_rules! hm {
         { $( $key:expr => $value:expr ),* $(,)? } => {{
-            HashMap::from_iter(vec![$( ($key, $value), )*])
+            HashMap::from([$( ($key, $value), )*])
         }};
     }
 
@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn flat_tree() {
-        let tree = generate_tree(&HashMap::from_iter(vec![
+        let tree = generate_tree(&HashMap::from([
             ("+", "add"),
             ("-", "sub"),
             ("<", "left"),
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn basic_nested_tree() {
-        let tree = generate_tree(&HashMap::from_iter(vec![
+        let tree = generate_tree(&HashMap::from([
             ("ABC", "abc"),
             ("ACB", "acb"),
             ("BAC", "bac"),
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn break_path_nested_tree() {
-        let tree = generate_tree(&HashMap::from_iter(vec![
+        let tree = generate_tree(&HashMap::from([
             ("ABC", "x"),
             ("A", "y"),
             ("B", "z"),
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn same_symbol_tree() {
-        let tree = generate_tree(&HashMap::from_iter(vec![
+        let tree = generate_tree(&HashMap::from([
             ("+", "a"),
             ("++", "b"),
             ("+++", "c"),
@@ -182,7 +182,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn samarium_tree() {
-        let tree = generate_tree(&HashMap::from_iter(vec![
+        let tree = generate_tree(&HashMap::from([
             ("+", "ad"),
             ("&&", "an"),
             ("@@@", "ar"),
