@@ -348,3 +348,103 @@ fn validate_literals<'a>(
     }
     Ok(literals)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{error::Error, flip_hashmap, validate_literals, Tokenizer};
+    use std::collections::{HashMap, HashSet};
+
+    #[test]
+    fn literal_validation_err() {
+        assert!(matches!(
+            validate_literals(HashMap::from([("x", "x"), ("y", "")])),
+            Err(Error::EmptyLiteral)
+        ));
+    }
+
+    #[test]
+    fn literal_validation_ok() {
+        assert!(validate_literals(HashMap::from([("x", "x"), ("", "y")])).is_ok());
+    }
+
+    #[test]
+    fn flip_hashmap_ok() {
+        assert_eq!(flip_hashmap(HashMap::new()), HashMap::new());
+        assert_eq!(
+            flip_hashmap(HashMap::from([("a", "b"), ("c", "d")])),
+            HashMap::from([("b", "a"), ("d", "c")])
+        );
+    }
+
+    #[test]
+    fn fast_mode() {
+        let tests = [
+            (HashMap::new(), Vec::new(), true),
+            (HashMap::new(), vec![(String::new(), String::new())], false),
+            (HashMap::from([("", "a")]), Vec::new(), true),
+            (HashMap::from([("", "a"), ("", "b")]), Vec::new(), true),
+            (
+                HashMap::from([("", "a"), ("", "b"), ("", "c!")]),
+                Vec::new(),
+                false,
+            ),
+        ];
+        for (literals, patterns, expected) in tests {
+            assert_eq!(
+                Tokenizer::default()
+                    .with_literals(literals)
+                    .unwrap()
+                    .with_patterns(patterns)
+                    .unwrap()
+                    .can_use_fast_mode(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn source_preparation() {
+        let tests = [(true, "foo\nbar"), (false, "foo\r\nbar")];
+        for (convert_crlf, expected) in tests {
+            assert_eq!(
+                Tokenizer::default()
+                    .with_convert_crlf(convert_crlf)
+                    .prepare_source("foo\r\nbar"),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn ignored_preparation() {
+        let tests = [
+            (vec![], false, HashSet::new()),
+            (vec!['a', 'b', 'c'], false, "abc".chars().collect()),
+            (
+                vec!['a', 'b', 'c'],
+                true,
+                "abc \x0c\t\x0b\r\n".chars().collect(),
+            ),
+        ];
+        for (ignored_characters, ignore_whitespace, expected) in tests {
+            assert_eq!(
+                Tokenizer::default()
+                    .with_ignore_whitespace(ignore_whitespace)
+                    .with_ignored_characters(ignored_characters)
+                    .prepare_ignored(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn literal_map_preparation() {
+        assert_eq!(
+            Tokenizer::default()
+                .with_literals(HashMap::from([("x", "a"), ("y", "b")]))
+                .unwrap()
+                .prepare_literal_map(),
+            HashMap::from([('a', "x"), ('b', "y")])
+        );
+    }
+}
