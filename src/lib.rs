@@ -370,7 +370,12 @@ fn validate_literals<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{error::Error, flip_hashmap, validate_literals, Tokenizer};
+    use crate::{
+        error::Error,
+        flip_hashmap,
+        tree::{generate_tree, Tree},
+        validate_literals, Tokenizer,
+    };
     use std::collections::{HashMap, HashSet};
 
     #[test]
@@ -497,5 +502,65 @@ mod tests {
                 .with_patterns([("1".into(), "2".into())].into())
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn builder_equivalence() {
+        let literals = HashMap::from([("a", "b")]);
+        let patterns = vec![(String::from("a"), String::from("b"))];
+        let ignored_chars = vec!['x'];
+
+        let mut tok1 = Tokenizer::default();
+        tok1.set_convert_crlf(false);
+        tok1.set_ignore_whitespace(true);
+        tok1.set_suppress_unknown(true);
+        tok1.set_ignored_characters(ignored_chars.clone());
+        tok1.set_literals(literals.clone()).unwrap();
+        tok1.set_patterns(patterns.clone()).unwrap();
+
+        let tok2 = Tokenizer::default()
+            .with_convert_crlf(false)
+            .with_ignore_whitespace(true)
+            .with_suppress_unknown(true)
+            .with_ignored_characters(ignored_chars.clone())
+            .with_literals(literals.clone())
+            .unwrap()
+            .with_patterns(patterns.clone())
+            .unwrap();
+
+        let tok3 = Tokenizer::new(literals, patterns, ignored_chars, false, true, true).unwrap();
+
+        assert_eq!(tok1, tok2);
+        assert_eq!(tok1, tok3);
+        assert_eq!(tok2, tok3);
+    }
+
+    #[test]
+    fn builder_processing_literals() {
+        let mut tok = Tokenizer::default();
+        assert_eq!(tok.tree, Tree::Node(HashMap::new()));
+
+        let literals = HashMap::from([("a", "b")]);
+        assert!(tok.set_literals(literals).is_ok());
+
+        let flipped_literals = HashMap::from([("b", "a")]);
+        let expected_tree = generate_tree(&flipped_literals);
+        assert_eq!(tok.literals, flipped_literals);
+        assert_eq!(tok.tree, expected_tree);
+
+        assert!(tok.set_literals(HashMap::from([("a", "")])).is_err());
+    }
+
+    #[test]
+    fn builder_processing_patterns() {
+        let mut tok = Tokenizer::default();
+        assert!(tok.patterns.is_empty());
+
+        let pattern = ("a".into(), r"\d+".into());
+        assert!(tok.set_patterns(vec![pattern.clone()]).is_ok());
+        assert_eq!(tok.patterns.first().unwrap().1.as_str(), r"^(\d+)");
+
+        assert!(tok.set_patterns(vec![pattern.clone(), pattern]).is_err());
+        assert!(tok.set_patterns(vec![("a".into(), "+".into())]).is_err());
     }
 }
