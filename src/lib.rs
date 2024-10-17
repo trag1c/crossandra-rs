@@ -24,6 +24,7 @@ pub struct Token {
     pub value: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct Tokenizer<'a> {
     literals: HashMap<&'a str, &'a str>,
     patterns: Vec<(String, Regex)>,
