@@ -35,6 +35,24 @@ pub struct Tokenizer<'a> {
     tree: Tree,
 }
 
+impl PartialEq for Tokenizer<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.literals == other.literals
+            && self.convert_crlf == other.convert_crlf
+            && self.ignore_whitespace == other.ignore_whitespace
+            && self.ignored_characters == other.ignored_characters
+            && self.suppress_unknown == other.suppress_unknown
+            && self.patterns.len() == other.patterns.len()
+            && self
+                .patterns
+                .iter()
+                .zip(&other.patterns)
+                .all(|(a, b)| a.0 == b.0 && a.1.as_str() == b.1.as_str())
+    }
+}
+
+impl Eq for Tokenizer<'_> {}
+
 impl<'a> Tokenizer<'a> {
     pub fn new(
         literals: HashMap<&'a str, &'a str>,
@@ -446,6 +464,38 @@ mod tests {
                 .unwrap()
                 .prepare_literal_map(),
             HashMap::from([('a', "x"), ('b', "y")])
+        );
+    }
+
+    #[test]
+    fn comparison() {
+        let def = Tokenizer::default();
+        assert_eq!(def, Tokenizer::default());
+        assert_eq!(def, Tokenizer::default().with_ignored_characters([].into()));
+        assert_ne!(
+            def,
+            Tokenizer::default().with_ignored_characters(['x'].into())
+        );
+        assert_ne!(def, Tokenizer::default().with_ignore_whitespace(true));
+        assert_ne!(def, Tokenizer::default().with_suppress_unknown(true));
+        assert_ne!(def, Tokenizer::default().with_convert_crlf(false));
+        assert_ne!(
+            def,
+            Tokenizer::default()
+                .with_literals([("1", "2")].into())
+                .unwrap()
+        );
+        assert_eq!(
+            def.clone().with_literals([("1", "2")].into()).unwrap(),
+            Tokenizer::default()
+                .with_literals([("1", "2")].into())
+                .unwrap()
+        );
+        assert_ne!(
+            def,
+            Tokenizer::default()
+                .with_patterns([("1".into(), "2".into())].into())
+                .unwrap()
         );
     }
 }
