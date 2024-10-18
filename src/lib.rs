@@ -110,7 +110,7 @@ impl<'a> Tokenizer<'a> {
     fn prepare_literal_map(&self) -> HashMap<char, &str> {
         self.literals
             .iter()
-            .map(|(k, v)| (k.chars().next().unwrap(), *v))
+            .map(|(k, v)| (k.chars().next().expect("all literals should be 1-long"), *v))
             .collect()
     }
 
@@ -360,7 +360,8 @@ impl<'a> Tokenizer<'a> {
 
 impl<'a> Default for Tokenizer<'a> {
     fn default() -> Self {
-        Self::new(HashMap::new(), Vec::new(), Vec::new(), true, false, false).unwrap()
+        Self::new(HashMap::new(), Vec::new(), Vec::new(), true, false, false)
+            .expect("an empty tokenizer should be correct")
     }
 }
 
