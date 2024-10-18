@@ -24,6 +24,15 @@ pub struct Token {
     pub value: String,
 }
 
+impl<T: Into<String>> From<(T, T)> for Token {
+    fn from(value: (T, T)) -> Self {
+        Token {
+            name: value.0.into(),
+            value: value.1.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Tokenizer<'a> {
     literals: HashMap<&'a str, &'a str>,
