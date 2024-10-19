@@ -377,10 +377,11 @@ fn validate_literals<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
+        common,
         error::Error,
         flip_hashmap,
         tree::{generate_tree, Tree},
-        validate_literals, Tokenizer,
+        validate_literals, Token, Tokenizer,
     };
     use std::collections::{HashMap, HashSet};
 
@@ -568,5 +569,236 @@ mod tests {
 
         assert!(tok.set_patterns(vec![pattern.clone(), pattern]).is_err());
         assert!(tok.set_patterns(vec![("a".into(), "+".into())]).is_err());
+    }
+
+    #[test]
+    fn empty_tokenizer() {
+        let tok = Tokenizer::default();
+
+        assert!(matches!(tok.tokenize(""), Ok(v) if v.is_empty()));
+
+        match tok.tokenize("source") {
+            Err(Error::BadToken(c)) => assert_eq!(c, 's'),
+            _ => panic!("tokenization didn't fail with BadToken"),
+        }
+    }
+
+    #[test]
+    fn brainfuck_fast_tokenizer() {
+        let tok = Tokenizer::default()
+            .with_literals(HashMap::from_iter([
+                ("add", "+"),
+                ("sub", "-"),
+                ("left", "<"),
+                ("right", ">"),
+                ("read", ","),
+                ("write", "."),
+                ("begin_loop", "["),
+                ("end_loop", "]"),
+            ]))
+            .unwrap();
+
+        if let Ok(tokens) = tok.tokenize(",[.,]") {
+            assert!(tokens
+                .iter()
+                .map(|t| t.name.clone())
+                .eq("read begin_loop write read end_loop".split_whitespace()));
+        } else {
+            panic!();
+        };
+    }
+
+    fn make_output(tokens: Vec<(&str, &str)>) -> Vec<Token> {
+        tokens.into_iter().map(Token::from).collect()
+    }
+
+    #[test]
+    fn arithmetic_tokenizer() {
+        let tests = [
+            (
+                "2 * 2 + 3 - 7",
+                make_output(vec![
+                    ("int", "2"),
+                    ("mul", "*"),
+                    ("int", "2"),
+                    ("add", "+"),
+                    ("int", "3"),
+                    ("sub", "-"),
+                    ("int", "7"),
+                ]),
+            ),
+            (
+                "2**3",
+                make_output(vec![("int", "2"), ("pow", "**"), ("int", "3")]),
+            ),
+            ("-5", make_output(vec![("sub", "-"), ("int", "5")])),
+            (
+                "100 + -5",
+                make_output(vec![
+                    ("int", "100"),
+                    ("add", "+"),
+                    ("sub", "-"),
+                    ("int", "5"),
+                ]),
+            ),
+            (
+                "4 - 2 ** 5 / 2",
+                make_output(vec![
+                    ("int", "4"),
+                    ("sub", "-"),
+                    ("int", "2"),
+                    ("pow", "**"),
+                    ("int", "5"),
+                    ("div", "/"),
+                    ("int", "2"),
+                ]),
+            ),
+            (
+                "10 % 3",
+                make_output(vec![("int", "10"), ("mod", "%"), ("int", "3")]),
+            ),
+        ];
+
+        let tok = Tokenizer::default()
+            .with_literals(
+                [
+                    ("add", "+"),
+                    ("sub", "-"),
+                    ("mul", "*"),
+                    ("div", "/"),
+                    ("pow", "**"),
+                    ("mod", "%"),
+                ]
+                .into(),
+            )
+            .unwrap()
+            .with_patterns(vec![common::INT.clone()])
+            .unwrap()
+            .with_suppress_unknown(true);
+
+        for (input, output) in tests {
+            assert_eq!(tok.tokenize(input).expect("tokenization failed"), output);
+        }
+    }
+
+    #[test]
+    fn line_tokenization() {
+        let tok = Tokenizer::default()
+            .with_ignore_whitespace(true)
+            .with_patterns(vec![common::WORD.clone()])
+            .unwrap();
+        let Ok(lines) = tok.tokenize_lines("a b\nc\rde") else {
+            panic!("tokenization failed");
+        };
+        assert_eq!(
+            lines,
+            vec![
+                make_output(vec![("word", "a"), ("word", "b")]),
+                make_output(vec![("word", "c"), ("word", "de")]),
+            ]
+        );
+    }
+
+    #[test]
+    fn breakpoint_tokenization() {
+        let (x, y, z) = (("x", "abc"), ("y", "a"), ("z", "b"));
+        let tok = Tokenizer::default()
+            .with_literals([x, y, z].into())
+            .unwrap();
+        let Ok(tokens) = tok.tokenize("ababaababc") else {
+            panic!("tokenization failed");
+        };
+        assert_eq!(tokens, make_output(vec![y, z, y, z, y, y, z, x]));
+    }
+
+    #[test]
+    fn fast_tokenization_with_ignoreset() {
+        let literals = [("foo", "x"), ("bar", "y")];
+        let tok = Tokenizer::default()
+            .with_literals(literals.into())
+            .unwrap()
+            .with_ignored_characters(['z'].into());
+        let Ok(tokens) = tok.tokenize("xzy") else {
+            panic!("tokenization failed");
+        };
+        assert_eq!(tokens, make_output(literals.into()));
+    }
+
+    #[test]
+    fn core_tokenization_with_ignoreset() {
+        let (foo, bar) = (("foo", "xz"), ("bar", "yz"));
+        let tok = Tokenizer::default()
+            .with_literals([foo, bar].into())
+            .unwrap()
+            .with_ignored_characters(['z'].into());
+        let Ok(tokens) = tok.tokenize("zxzyzxzyzzzyzzxzyzzzxzz") else {
+            panic!("tokenization failed");
+        };
+        assert_eq!(
+            tokens,
+            make_output(vec![foo, bar, foo, bar, bar, foo, bar, foo])
+        );
+    }
+
+    #[test]
+    fn whitespace_tokenization() {
+        let (cr, ln, space) = (("cr", "\r"), ("ln", "\n"), ("space", " "));
+        let mut tok = Tokenizer::default()
+            .with_literals([cr, ln, space].into())
+            .unwrap();
+        let source = " \r\n \r \n ";
+
+        let tests = [
+            (
+                true,
+                vec![space, ln, space, cr, space, ln, space],
+                vec![
+                    vec![Token::from(space)],
+                    make_output(vec![space, cr, space]),
+                    vec![Token::from(space)],
+                ],
+            ),
+            (
+                false,
+                vec![space, cr, ln, space, cr, space, ln, space],
+                vec![
+                    make_output(vec![space, cr]),
+                    make_output(vec![space, cr, space]),
+                    vec![Token::from(space)],
+                ],
+            ),
+        ];
+        for (convert_crlf, single_line_output, multi_line_output) in tests {
+            tok.set_convert_crlf(convert_crlf);
+            let Ok(tokens) = tok.tokenize(source) else {
+                panic!("tokenization failed");
+            };
+            assert_eq!(tokens, make_output(single_line_output));
+
+            let Ok(lines) = tok.tokenize_lines(source) else {
+                panic!("tokenization failed");
+            };
+            assert_eq!(lines, multi_line_output);
+        }
+    }
+
+    #[test]
+    fn bad_tokenization_fast() {
+        let tok = Tokenizer::default();
+        let Error::BadToken(bad_token) = tok.tokenize("x").unwrap_err() else {
+            panic!("tokenization didn't fail with BadToken");
+        };
+        assert_eq!(bad_token, 'x');
+    }
+
+    #[test]
+    fn bad_tokenization_core() {
+        let tok = Tokenizer::default()
+            .with_literals([("xy", "xy")].into())
+            .unwrap();
+        let Error::BadToken(bad_token) = tok.tokenize("xyz").unwrap_err() else {
+            panic!("tokenization didn't fail with BadToken");
+        };
+        assert_eq!(bad_token, 'z');
     }
 }
