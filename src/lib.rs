@@ -124,20 +124,16 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    pub fn tokenize_lines(&self, lines: Vec<&str>) -> Result<Vec<Vec<Token>>, Error> {
+    pub fn tokenize_lines(&self, source: &str) -> Result<Vec<Vec<Token>>, Error> {
         let ignored = self.prepare_ignored();
-        if self.can_use_fast_mode() {
-            let literal_map = &self.prepare_literal_map();
-            lines
-                .iter()
-                .map(|line| self.tokenize_fast(line, &ignored, literal_map))
-                .collect()
+        let source = self.prepare_source(source);
+        let func: Box<dyn Fn(&str) -> Result<Vec<Token>, Error>> = if self.can_use_fast_mode() {
+            let literal_map = self.prepare_literal_map();
+            Box::new(move |line| self.tokenize_fast(line, &ignored, &literal_map))
         } else {
-            lines
-                .iter()
-                .map(|line| self.tokenize_core(line, &ignored))
-                .collect()
-        }
+            Box::new(|line| self.tokenize_core(line, &ignored))
+        };
+        source.split('\n').map(func).collect()
     }
 
     fn tokenize_core(
