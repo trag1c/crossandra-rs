@@ -62,6 +62,8 @@ impl PartialEq for Tokenizer<'_> {
 
 impl Eq for Tokenizer<'_> {}
 
+type InnerTokenizerFn<'a> = dyn Fn(&str) -> Result<Vec<Token>, Error> + 'a;
+
 impl<'a> Tokenizer<'a> {
     pub fn new(
         literals: HashMap<&'a str, &'a str>,
@@ -127,7 +129,7 @@ impl<'a> Tokenizer<'a> {
     pub fn tokenize_lines(&self, source: &str) -> Result<Vec<Vec<Token>>, Error> {
         let ignored = self.prepare_ignored();
         let source = self.prepare_source(source);
-        let func: Box<dyn Fn(&str) -> Result<Vec<Token>, Error>> = if self.can_use_fast_mode() {
+        let func: Box<InnerTokenizerFn> = if self.can_use_fast_mode() {
             let literal_map = self.prepare_literal_map();
             Box::new(move |line| self.tokenize_fast(line, &ignored, &literal_map))
         } else {
