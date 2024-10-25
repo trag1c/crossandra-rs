@@ -292,13 +292,12 @@ impl<'a> Tokenizer<'a> {
     }
 
     pub fn with_literals(mut self, literals: HashMap<&'a str, &'a str>) -> Result<Self, Error> {
-        self.literals = flip_hashmap(validate_literals(literals)?);
-        self.tree = generate_tree(&self.literals);
+        self.set_literals(literals)?;
         Ok(self)
     }
 
     pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, Error> {
-        self.patterns = patterns::prepare(patterns)?;
+        self.set_patterns(patterns)?;
         Ok(self)
     }
 
