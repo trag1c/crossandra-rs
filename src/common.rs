@@ -11,7 +11,7 @@ lazy_static! {
     pub static ref DOUBLE_QUOTED_STRING: (String, String) =
         ("double_quoted_string".into(), format!("\"{STRING_BASE}\""));
     pub static ref LETTER: (String, String) = ("letter".into(), r"[A-Za-z]".into());
-    pub static ref WORD: (String, String) = ("word".into(), r"[A-Za-z]+".into());
+    pub static ref WORD: (String, String) = ("word".into(), r"[A-Za-z]+(-[A-Za-z]+)*".into());
     pub static ref C_NAME: (String, String) = ("c_name".into(), r"[_A-Za-z][_A-Za-z\d]*".into());
     pub static ref NEWLINE: (String, String) = ("newline".into(), r"\r?\n".into());
     pub static ref DIGIT: (String, String) = ("digit".into(), r"[0-9]".into());
@@ -158,6 +158,15 @@ mod tests {
                 ("A", Ok(vec!["A"])),
                 ("word", Ok(vec!["word"])),
                 (" word", Err(' ')),
+                ("-", Err('-')),
+                ("a-", Err('-')),
+                ("-a", Err('-')),
+                ("a-a", Ok(vec!["a-a"])),
+                ("a--a", Err('-')),
+                ("thread-safe", Ok(vec!["thread-safe"])),
+                ("thread-", Err('-')),
+                ("-jack-o", Err('-')),
+                ("jack-o-lantern", Ok(vec!["jack-o-lantern"])),
             ],
         );
     }
