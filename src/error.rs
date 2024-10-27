@@ -22,7 +22,7 @@ mod tests {
     use crate::error::Error;
 
     #[test]
-    fn error_diplay() {
+    fn error_display() {
         assert_eq!(Error::BadToken('x').to_string(), "invalid token 'x'");
         assert_eq!(
             Error::DuplicatePattern("string".into()).to_string(),
