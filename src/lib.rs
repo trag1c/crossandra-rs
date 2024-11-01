@@ -737,7 +737,7 @@ mod tests {
         assert!(tok.set_patterns(vec![pattern.clone()]).is_ok());
         assert_eq!(tok.patterns.first().unwrap().1.as_str(), r"^(\d+)");
 
-        assert!(tok.set_patterns(vec![pattern.clone(), pattern]).is_err());
+        assert!(tok.set_patterns(vec![pattern.clone(), pattern]).is_ok());
         assert!(tok.set_patterns(vec![("a".into(), "+".into())]).is_err());
     }
 

@@ -5,17 +5,7 @@ use fancy_regex::Regex;
 use crate::error::Error;
 
 pub(crate) fn prepare(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
-    compile(validate(adjust(patterns))?)
-}
-
-fn validate(patterns: Vec<(String, String)>) -> Result<Vec<(String, String)>, Error> {
-    let mut names: HashSet<&String> = HashSet::new();
-    for (name, _) in &patterns {
-        if !names.insert(name) {
-            return Err(Error::DuplicatePattern(name.clone()));
-        }
-    }
-    Ok(patterns)
+    compile(adjust(patterns))
 }
 
 fn compile(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Error> {
@@ -63,38 +53,8 @@ fn adjust(patterns: Vec<(String, String)>) -> Vec<(String, String)> {
 mod tests {
     use crate::{
         error::Error,
-        patterns::{compile, force_start_anchor, prepare, validate},
+        patterns::{compile, force_start_anchor, prepare},
     };
-
-    #[test]
-    fn validate_ok() {
-        let patterns = vec![("foo".into(), String::new()), ("bar".into(), String::new())];
-        assert!(validate(patterns).is_ok());
-    }
-
-    #[test]
-    fn validate_empty_ok() {
-        assert!(validate(Vec::new()).is_ok());
-    }
-
-    #[test]
-    fn validate_err() {
-        let patterns = vec![("foo".into(), String::new()), ("foo".into(), String::new())];
-        let res = validate(patterns);
-        assert!(matches!(res, Err(Error::DuplicatePattern(s)) if s == *"foo"));
-    }
-
-    #[test]
-    fn validate_two_duplicate_keys_err() {
-        let patterns = vec![
-            ("foo".into(), String::new()),
-            ("bar".into(), String::new()),
-            ("bar".into(), String::new()),
-            ("foo".into(), String::new()),
-        ];
-        let res = validate(patterns);
-        assert!(matches!(res, Err(Error::DuplicatePattern(s)) if s == *"bar"));
-    }
 
     #[test]
     fn compile_ok() {
@@ -146,6 +106,6 @@ mod tests {
             ("digit".into(), "[0-9]".into()),
             ("digit".into(), "[0-9]".into())
         ])
-        .is_err());
+        .is_ok());
     }
 }
