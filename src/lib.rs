@@ -1,3 +1,32 @@
+//! Crossandra is a straightforward tokenization library designed for seamless text processing.
+//!
+//! # Examples
+//! ## [Brainfuck](https://en.wikipedia.org/wiki/Brainfuck)
+//! ```rust
+//! use crossandra::Tokenizer;
+//!
+//! # fn main() {
+//! let bf_tok = Tokenizer::default()
+//!     .with_literals([
+//!         ("add", "+"),
+//!         ("sub", "-"),
+//!         ("left", "<"),
+//!         ("right", ">"),
+//!         ("read", ","),
+//!         ("write", "."),
+//!         ("begin_loop", "["),
+//!         ("end_loop", "]"),
+//!     ].into())
+//!     .expect("all literals should be ≥1 characters long")
+//!     .with_suppress_unknown(true);
+//!
+//! # assert!(bf_tok.tokenize("cat program: ,[.,]").is_ok());
+//! match bf_tok.tokenize("cat program: ,[.,]") {
+//!     Ok(tokens) => println!("{tokens:?}"),
+//!     Err(e) => eprintln!("An error occurred: {e}"),
+//! }
+//! # }
+//! ```
 use std::{
     collections::{HashMap, HashSet},
     iter::{once, Chain, Once, Take},
@@ -33,9 +62,9 @@ const WHITESPACE: [char; 6] = [' ', '\x0c', '\t', '\x0b', '\r', '\n'];
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct Token {
-    /// The type or category of the token (e.g., "int", "identifier", "operator")
+    /// The type or category of the token (e.g., "int", "identifier", "operator").
     pub name: String,
-    /// The actual text/value from the source code that this token represents
+    /// The actual text/value from the source code that this token represents.
     pub value: String,
 }
 
@@ -48,6 +77,80 @@ impl<T: Into<String>> From<(T, T)> for Token {
     }
 }
 
+/// The Crossandra tokenizer, operating on literals and patterns.
+///
+/// ## Literals
+/// Literals indicate values that have to be exactly matched by the tokenizer. They are represented
+/// by a [`HashMap`], mapping the literal's name to its value. For instance, a literal map for
+/// Brainfuck would be defined like this:
+/// ```rust
+/// # use std::collections::HashMap;
+/// # use crossandra::Tokenizer;
+/// let literals = HashMap::from([
+///     ("add", "+"),
+///     ("sub", "-"),
+///     ("left", "<"),
+///     ("right", ">"),
+///     ("read", ","),
+///     ("write", "."),
+///     ("begin_loop", "["),
+///     ("end_loop", "]"),
+/// ]);
+/// # assert!(Tokenizer::default().with_literals(literals).is_ok());
+/// ```
+/// Literals take precedence over patterns.
+///
+/// ## Patterns
+/// Patterns are regular expressions that match more complex token structures. They are represented
+/// as pairs of strings (name, pattern) in a [`Vec`] to maintain a consistent matching order.
+///
+/// The order of patterns matters as the tokenizer will use the first matching pattern it finds.
+/// Duplicate pattern names are not allowed and will result in an error. This crate also provides a
+/// collection of commonly used patterns in the [`common`] module. For example, patterns covering
+/// binary, octal, and hexadecimal literals could be defined like this:
+/// ```rust
+/// # use crossandra::Tokenizer;
+/// let patterns = vec![
+///     ("binary".into(), r"0[bB][01]+".into()),
+///     ("octal".into(), r"0[Oo][0-7]+".into()),
+///     ("hexadecimal".into(), r"(?i)0x[0-9a-f]+".into()),
+/// ];
+/// # assert!(Tokenizer::default().with_patterns(patterns).is_ok());
+/// ```
+///
+/// ## Other options
+///
+/// ### `convert_crlf`
+/// Whether to convert `\r\n` to `\n` before tokenization. Defaults to `true`.
+///
+/// ### `ignore_whitespace`
+/// Whether to ignore the following whitespace characters:
+///
+/// | Code   | Character              |
+/// |--------|------------------------|
+/// | `0x9`  | Tab (`\t`)             |
+/// | `0xa`  | Line feed (`\n`)       |
+/// | `0xb`  | Vertical tab           |
+/// | `0xc`  | Form feed              |
+/// | `0xd`  | Carriage return (`\r`) |
+/// | `0x20` | Space (` `)            |
+///
+/// Defaults to `false`.
+///
+/// ### `ignored_characters`
+/// A set of characters to ignore during tokenization. Defaults to an empty [`Vec`].
+///
+/// ### `suppress_unknown`
+/// Whether unknown tokens should halt tokenization or be silently ignored. Defaults to `false`.
+///
+/// ## Fast Mode
+/// When all literals are of length 1 and there are no patterns, Crossandra uses a simpler
+/// tokenization method.
+///
+/// For instance, tokenizing a 1MB random Brainfuck file with 10% of the file being comments is
+/// ~300x faster with Fast Mode (32.5s vs 110ms on Apple M2).
+///
+/// Do note that this is a rather extreme case; for a 1KB file, the speedup is ~2.3x.
 #[derive(Debug, Clone)]
 pub struct Tokenizer<'a> {
     literals: HashMap<&'a str, &'a str>,
@@ -80,6 +183,14 @@ impl Eq for Tokenizer<'_> {}
 type InnerTokenizerFn<'a> = dyn Fn(&str) -> Result<Vec<Token>, Error> + 'a;
 
 impl<'a> Tokenizer<'a> {
+    /// Creates a new [`Tokenizer`] with the specified configuration.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// * any [literal](Tokenizer#literals) is empty,
+    /// * there are duplicate [patterns](Tokenizer#patterns), or
+    /// * any [pattern](Tokenizer#patterns) regex is invalid.
     pub fn new(
         literals: HashMap<&'a str, &'a str>,
         patterns: Vec<(String, String)>,
@@ -131,6 +242,11 @@ impl<'a> Tokenizer<'a> {
             .collect()
     }
 
+    /// Tokenizes the given source code and returns a [`Vec`] of [`Token`]s.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if an invalid token is found but not suppressed.
     pub fn tokenize(&self, source: &str) -> Result<Vec<Token>, Error> {
         let source = self.prepare_source(source);
         let ignored = self.prepare_ignored();
@@ -141,6 +257,12 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
+    /// Splits the given source code into lines and tokenizes each line separately.
+    /// Returns a [`Vec`] of [`Vec`]s of [`Token`]s.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any line fails to tokenize.
     pub fn tokenize_lines(&self, source: &str) -> Result<Vec<Vec<Token>>, Error> {
         let ignored = self.prepare_ignored();
         let source = self.prepare_source(source);
@@ -306,63 +428,97 @@ impl<'a> Tokenizer<'a> {
         Ok(tokens)
     }
 
+    /// Sets the [literals](Tokenizer#literals) of this [`Tokenizer`] and returns itself.
+    ///
+    /// # Errors
+    /// This function will return an error if any literal is empty.
     pub fn with_literals(mut self, literals: HashMap<&'a str, &'a str>) -> Result<Self, Error> {
         self.set_literals(literals)?;
         Ok(self)
     }
 
+    /// Sets the [patterns](Tokenizer#patterns) of this [`Tokenizer`] and returns itself.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// * there are duplicate patterns, or
+    /// * any pattern regex is invalid.
     pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, Error> {
         self.set_patterns(patterns)?;
         Ok(self)
     }
 
+    /// Sets the [ignored characters](Tokenizer#ignored_characters) of this [`Tokenizer`] and
+    /// returns itself.
     #[must_use]
     pub fn with_ignored_characters(mut self, ignored_characters: Vec<char>) -> Self {
         self.ignored_characters = ignored_characters;
         self
     }
 
+    /// Sets the [CRLF conversion](Tokenizer#convert_crlf) of this [`Tokenizer`] and returns itself.
     #[must_use]
     pub fn with_convert_crlf(mut self, convert_crlf: bool) -> Self {
         self.convert_crlf = convert_crlf;
         self
     }
 
+    /// Sets the [`ignore_whitespace`](Tokenizer#ignore_whitespace) option of this [`Tokenizer`] and
+    /// returns itself.
     #[must_use]
     pub fn with_ignore_whitespace(mut self, ignore_whitespace: bool) -> Self {
         self.ignore_whitespace = ignore_whitespace;
         self
     }
 
+    /// Sets the [`suppress_unknown`](Tokenizer#suppress_unknown) option of this [`Tokenizer`] and
+    /// returns itself.
     #[must_use]
     pub fn with_suppress_unknown(mut self, suppress_unknown: bool) -> Self {
         self.suppress_unknown = suppress_unknown;
         self
     }
 
+    /// Sets the [literals](Tokenizer#literals) of this [`Tokenizer`].
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any literal is empty.
     pub fn set_literals(&mut self, literals: HashMap<&'a str, &'a str>) -> Result<(), Error> {
         self.literals = flip_hashmap(validate_literals(literals)?);
         self.tree = generate_tree(&self.literals);
         Ok(())
     }
 
+    /// Sets the [patterns](Tokenizer#patterns) of this [`Tokenizer`].
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// * there are duplicate patterns, or
+    /// * any pattern regex is invalid.
     pub fn set_patterns(&mut self, patterns: Vec<(String, String)>) -> Result<(), Error> {
         self.patterns = patterns::prepare(patterns)?;
         Ok(())
     }
 
+    /// Sets the [ignored characters](Tokenizer#ignored_characters) of this [`Tokenizer`].
     pub fn set_ignored_characters(&mut self, ignored_characters: Vec<char>) {
         self.ignored_characters = ignored_characters;
     }
 
+    /// Sets the [CRLF conversion](Tokenizer#convert_crlf) of this [`Tokenizer`].
     pub fn set_convert_crlf(&mut self, convert_crlf: bool) {
         self.convert_crlf = convert_crlf;
     }
 
+    /// Sets the [`ignore_whitespace`](Tokenizer#ignore_whitespace) option of this [`Tokenizer`].
     pub fn set_ignore_whitespace(&mut self, ignore_whitespace: bool) {
         self.ignore_whitespace = ignore_whitespace;
     }
 
+    /// Sets the [`suppress_unknown`](Tokenizer#suppress_unknown) option of this [`Tokenizer`].
     pub fn set_suppress_unknown(&mut self, suppress_unknown: bool) {
         self.suppress_unknown = suppress_unknown;
     }
