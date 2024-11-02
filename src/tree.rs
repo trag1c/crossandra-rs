@@ -8,34 +8,41 @@ pub(crate) enum Tree {
 
 pub(crate) fn generate_tree(literals: &HashMap<&str, &str>) -> Tree {
     let mut sorted_items: Vec<_> = literals.iter().collect();
-    sorted_items.sort_by(|(k1, _), (k2, _)| k2.len().cmp(&k1.len()));
+    sorted_items.sort_by_key(|(k, _)| std::cmp::Reverse(k.len()));
 
     let mut root = Tree::Node(HashMap::new());
 
-    for (k, v) in sorted_items {
+    for (k, &v) in sorted_items {
         let mut current = &mut root;
 
-        for c in k[..k.len() - 1].chars() {
-            if let Tree::Node(ref mut map) = current {
+        // iterate over the characters in the key
+        let mut chars = k.chars().peekable();
+        while let Some(c) = chars.next() {
+            let Tree::Node(ref mut map) = current else {
+                continue;
+            };
+
+            // if there is a character after the current character
+            if chars.peek().is_some() {
+                // move down the tree
                 current = map.entry(Some(c)).or_insert(Tree::Node(HashMap::new()));
+            } else {
+                // else we reached the end and insert the value at the current position
+                map.entry(Some(c))
+                    // if the current subtree is a node, insert the value as a subtree
+                    .and_modify(|inner_tree| {
+                        if let Tree::Node(node) = inner_tree {
+                            node.insert(None, Tree::Leaf(v.to_string()));
+                        }
+                    })
+                    // if the current subtree is a node, insert the value as a leaf
+                    .or_insert(Tree::Leaf(v.to_string()));
+
+                break; // needed to satisfy the borrow checker
             }
         }
-
-        if let Tree::Node(map) = current {
-            let last_char = k.chars().last().expect("Key should not be empty");
-            let token_name = Tree::Leaf((*v).to_string());
-            match map.get_mut(&Some(last_char)) {
-                Some(inner_tree) => {
-                    if let Tree::Node(node) = inner_tree {
-                        node.insert(None, token_name);
-                    }
-                }
-                None => {
-                    map.insert(Some(last_char), token_name);
-                }
-            };
-        }
     }
+
     root
 }
 
