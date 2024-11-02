@@ -7,7 +7,7 @@
 //!
 //! # fn main() {
 //! let bf_tok = Tokenizer::default()
-//!     .with_literals([
+//!     .with_literals(&[
 //!         ("add", "+"),
 //!         ("sub", "-"),
 //!         ("left", "<"),
@@ -96,7 +96,7 @@ impl<T: Into<String>> From<(T, T)> for Token {
 ///     ("begin_loop", "["),
 ///     ("end_loop", "]"),
 /// ]);
-/// # assert!(Tokenizer::default().with_literals(literals).is_ok());
+/// # assert!(Tokenizer::default().with_literals(&literals).is_ok());
 /// ```
 /// Literals take precedence over patterns.
 ///
@@ -192,14 +192,15 @@ impl<'a> Tokenizer<'a> {
     /// * there are duplicate [patterns](Tokenizer#patterns), or
     /// * any [pattern](Tokenizer#patterns) regex is invalid.
     pub fn new(
-        literals: HashMap<&'a str, &'a str>,
+        literals: &HashMap<&'a str, &'a str>,
         patterns: Vec<(String, String)>,
         ignored_characters: Vec<char>,
         convert_crlf: bool,
         ignore_whitespace: bool,
         suppress_unknown: bool,
     ) -> Result<Self, Error> {
-        let literals = flip_hashmap(validate_literals(literals)?);
+        validate_literals(literals)?;
+        let literals = flip_hashmap(literals);
         Ok(Self {
             tree: generate_tree(&literals),
             literals,
@@ -238,7 +239,7 @@ impl<'a> Tokenizer<'a> {
     fn prepare_literal_map(&self) -> HashMap<char, &str> {
         self.literals
             .iter()
-            .map(|(k, v)| (k.chars().next().expect("all literals should be 1-long"), *v))
+            .map(|(&k, &v)| (k.chars().next().expect("all literals should be 1-long"), v))
             .collect()
     }
 
@@ -383,7 +384,7 @@ impl<'a> Tokenizer<'a> {
         if let Some((s, u)) = break_path {
             return Ok((
                 s.to_string(),
-                if let Some(value) = flip_hashmap(self.literals.clone()).get(&s.as_str()) {
+                if let Some(value) = flip_hashmap(&self.literals).get(s.as_str()) {
                     (*value).to_string()
                 } else {
                     return Err(s.chars().next().expect("the token will never be unnamed"));
@@ -432,7 +433,7 @@ impl<'a> Tokenizer<'a> {
     ///
     /// # Errors
     /// This function will return an error if any literal is empty.
-    pub fn with_literals(mut self, literals: HashMap<&'a str, &'a str>) -> Result<Self, Error> {
+    pub fn with_literals(mut self, literals: &HashMap<&'a str, &'a str>) -> Result<Self, Error> {
         self.set_literals(literals)?;
         Ok(self)
     }
@@ -485,8 +486,9 @@ impl<'a> Tokenizer<'a> {
     /// # Errors
     ///
     /// This function will return an error if any literal is empty.
-    pub fn set_literals(&mut self, literals: HashMap<&'a str, &'a str>) -> Result<(), Error> {
-        self.literals = flip_hashmap(validate_literals(literals)?);
+    pub fn set_literals(&mut self, literals: &HashMap<&'a str, &'a str>) -> Result<(), Error> {
+        validate_literals(literals)?;
+        self.literals = flip_hashmap(literals);
         self.tree = generate_tree(&self.literals);
         Ok(())
     }
@@ -526,22 +528,21 @@ impl<'a> Tokenizer<'a> {
 
 impl<'a> Default for Tokenizer<'a> {
     fn default() -> Self {
-        Self::new(HashMap::new(), Vec::new(), Vec::new(), true, false, false)
+        Self::new(&HashMap::new(), Vec::new(), Vec::new(), true, false, false)
             .expect("an empty tokenizer should be correct")
     }
 }
 
-fn flip_hashmap<'a>(hm: HashMap<&'a str, &'a str>) -> HashMap<&'a str, &'a str> {
-    hm.into_iter().map(|(k, v)| (v, k)).collect()
+fn flip_hashmap<'a>(hm: &HashMap<&'a str, &'a str>) -> HashMap<&'a str, &'a str> {
+    hm.iter().map(|(&k, &v)| (v, k)).collect()
 }
 
-fn validate_literals<'a>(
-    literals: HashMap<&'a str, &'a str>,
-) -> Result<HashMap<&'a str, &'a str>, Error> {
-    if literals.values().any(|lit| lit.is_empty()) {
-        return Err(Error::EmptyLiteral);
-    }
-    Ok(literals)
+fn validate_literals<'a>(literals: &HashMap<&'a str, &'a str>) -> Result<(), Error> {
+    literals
+        .values()
+        .all(|literal| !literal.is_empty())
+        .then_some(())
+        .ok_or(Error::EmptyLiteral)
 }
 
 #[cfg(test)]
@@ -558,21 +559,21 @@ mod tests {
     #[test]
     fn literal_validation_err() {
         assert!(matches!(
-            validate_literals(HashMap::from([("x", "x"), ("y", "")])),
+            validate_literals(&HashMap::from([("x", "x"), ("y", "")])),
             Err(Error::EmptyLiteral)
         ));
     }
 
     #[test]
     fn literal_validation_ok() {
-        assert!(validate_literals(HashMap::from([("x", "x"), ("", "y")])).is_ok());
+        assert!(validate_literals(&HashMap::from([("x", "x"), ("", "y")])).is_ok());
     }
 
     #[test]
     fn flip_hashmap_ok() {
-        assert_eq!(flip_hashmap(HashMap::new()), HashMap::new());
+        assert_eq!(flip_hashmap(&HashMap::new()), HashMap::new());
         assert_eq!(
-            flip_hashmap(HashMap::from([("a", "b"), ("c", "d")])),
+            flip_hashmap(&HashMap::from([("a", "b"), ("c", "d")])),
             HashMap::from([("b", "a"), ("d", "c")])
         );
     }
@@ -593,7 +594,7 @@ mod tests {
         for (literals, patterns, expected) in tests {
             assert_eq!(
                 Tokenizer::default()
-                    .with_literals(literals)
+                    .with_literals(&literals)
                     .unwrap()
                     .with_patterns(patterns)
                     .unwrap()
@@ -642,7 +643,7 @@ mod tests {
     fn literal_map_preparation() {
         assert_eq!(
             Tokenizer::default()
-                .with_literals(HashMap::from([("x", "a"), ("y", "b")]))
+                .with_literals(&HashMap::from([("x", "a"), ("y", "b")]))
                 .unwrap()
                 .prepare_literal_map(),
             HashMap::from([('a', "x"), ('b', "y")])
@@ -664,13 +665,13 @@ mod tests {
         assert_ne!(
             def,
             Tokenizer::default()
-                .with_literals([("1", "2")].into())
+                .with_literals(&[("1", "2")].into())
                 .unwrap()
         );
         assert_eq!(
-            def.clone().with_literals([("1", "2")].into()).unwrap(),
+            def.clone().with_literals(&[("1", "2")].into()).unwrap(),
             Tokenizer::default()
-                .with_literals([("1", "2")].into())
+                .with_literals(&[("1", "2")].into())
                 .unwrap()
         );
         assert_ne!(
@@ -692,7 +693,7 @@ mod tests {
         tok1.set_ignore_whitespace(true);
         tok1.set_suppress_unknown(true);
         tok1.set_ignored_characters(ignored_chars.clone());
-        tok1.set_literals(literals.clone()).unwrap();
+        tok1.set_literals(&literals).unwrap();
         tok1.set_patterns(patterns.clone()).unwrap();
 
         let tok2 = Tokenizer::default()
@@ -700,12 +701,12 @@ mod tests {
             .with_ignore_whitespace(true)
             .with_suppress_unknown(true)
             .with_ignored_characters(ignored_chars.clone())
-            .with_literals(literals.clone())
+            .with_literals(&literals)
             .unwrap()
             .with_patterns(patterns.clone())
             .unwrap();
 
-        let tok3 = Tokenizer::new(literals, patterns, ignored_chars, false, true, true).unwrap();
+        let tok3 = Tokenizer::new(&literals, patterns, ignored_chars, false, true, true).unwrap();
 
         assert_eq!(tok1, tok2);
         assert_eq!(tok1, tok3);
@@ -718,14 +719,14 @@ mod tests {
         assert_eq!(tok.tree, Tree::Node(HashMap::new()));
 
         let literals = HashMap::from([("a", "b")]);
-        assert!(tok.set_literals(literals).is_ok());
+        assert!(tok.set_literals(&literals).is_ok());
 
         let flipped_literals = HashMap::from([("b", "a")]);
         let expected_tree = generate_tree(&flipped_literals);
         assert_eq!(tok.literals, flipped_literals);
         assert_eq!(tok.tree, expected_tree);
 
-        assert!(tok.set_literals(HashMap::from([("a", "")])).is_err());
+        assert!(tok.set_literals(&HashMap::from([("a", "")])).is_err());
     }
 
     #[test]
@@ -756,7 +757,7 @@ mod tests {
     #[test]
     fn brainfuck_fast_tokenizer() {
         let tok = Tokenizer::default()
-            .with_literals(HashMap::from_iter([
+            .with_literals(&HashMap::from_iter([
                 ("add", "+"),
                 ("sub", "-"),
                 ("left", "<"),
@@ -831,7 +832,7 @@ mod tests {
 
         let tok = Tokenizer::default()
             .with_literals(
-                [
+                &[
                     ("add", "+"),
                     ("sub", "-"),
                     ("mul", "*"),
@@ -873,7 +874,7 @@ mod tests {
     fn breakpoint_tokenization() {
         let (x, y, z) = (("x", "abc"), ("y", "a"), ("z", "b"));
         let tok = Tokenizer::default()
-            .with_literals([x, y, z].into())
+            .with_literals(&[x, y, z].into())
             .unwrap();
         let Ok(tokens) = tok.tokenize("ababaababc") else {
             panic!("tokenization failed");
@@ -885,7 +886,7 @@ mod tests {
     fn fast_tokenization_with_ignoreset() {
         let literals = [("foo", "x"), ("bar", "y")];
         let tok = Tokenizer::default()
-            .with_literals(literals.into())
+            .with_literals(&literals.into())
             .unwrap()
             .with_ignored_characters(['z'].into());
         let Ok(tokens) = tok.tokenize("xzy") else {
@@ -898,7 +899,7 @@ mod tests {
     fn core_tokenization_with_ignoreset() {
         let (foo, bar) = (("foo", "xz"), ("bar", "yz"));
         let tok = Tokenizer::default()
-            .with_literals([foo, bar].into())
+            .with_literals(&[foo, bar].into())
             .unwrap()
             .with_ignored_characters(['z'].into());
         let Ok(tokens) = tok.tokenize("zxzyzxzyzzzyzzxzyzzzxzz") else {
@@ -914,7 +915,7 @@ mod tests {
     fn whitespace_tokenization() {
         let (cr, ln, space) = (("cr", "\r"), ("ln", "\n"), ("space", " "));
         let mut tok = Tokenizer::default()
-            .with_literals([cr, ln, space].into())
+            .with_literals(&[cr, ln, space].into())
             .unwrap();
         let source = " \r\n \r \n ";
 
@@ -964,7 +965,7 @@ mod tests {
     #[test]
     fn bad_tokenization_core() {
         let tok = Tokenizer::default()
-            .with_literals([("xy", "xy")].into())
+            .with_literals(&[("xy", "xy")].into())
             .unwrap();
         let Error::BadToken(bad_token) = tok.tokenize("xyz").unwrap_err() else {
             panic!("tokenization didn't fail with BadToken");
