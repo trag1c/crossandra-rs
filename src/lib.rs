@@ -411,20 +411,14 @@ impl<'a> Tokenizer<'a> {
         literal_map: &HashMap<char, &str>,
     ) -> Result<Vec<Token>, Error> {
         let mut tokens: Vec<Token> = Vec::new();
-        for char in source.chars() {
-            if ignored_characters.contains(&char) {
-                continue;
-            }
-            match literal_map.get(&char) {
-                Some(name) => tokens.push(Token {
-                    name: (*name).to_string(),
+        for char in source.chars().filter(|c| !ignored_characters.contains(c)) {
+            if let Some(&name) = literal_map.get(&char) {
+                tokens.push(Token {
+                    name: name.to_string(),
                     value: char.to_string(),
-                }),
-                None => {
-                    if !self.suppress_unknown {
-                        return Err(Error::BadToken(char));
-                    }
-                }
+                });
+            } else if !self.suppress_unknown {
+                return Err(Error::BadToken(char));
             }
         }
         Ok(tokens)
