@@ -27,11 +27,7 @@
 //! }
 //! # }
 //! ```
-use std::{
-    collections::{HashMap, HashSet},
-    iter::{once, Chain, Once, Take},
-    str::Chars,
-};
+use std::collections::{HashMap, HashSet};
 
 use fancy_regex::Regex;
 
@@ -281,40 +277,40 @@ impl<'a> Tokenizer<'a> {
         source: &str,
         ignored_characters: &HashSet<char>,
     ) -> Result<Vec<Token>, Error> {
-        let mut tokens: Vec<Token> = Vec::new();
-        let mut chars = source.chars();
+        let mut tokens = Vec::new();
         let chunk_size = self.literals.keys().map(|x| x.len()).max().unwrap_or(1);
 
-        while let Some(c) = &chars.next() {
-            if ignored_characters.contains(c) {
-                continue;
-            }
-            let handling_result = self.handle(once(*c).chain(chars.clone().take(chunk_size - 1)));
+        let mut remaining_source = source;
+        let mut chars = source.char_indices();
+
+        'outer: while let Some((index, _)) = chars.find(|(_, c)| !ignored_characters.contains(c)) {
+            remaining_source = &remaining_source[index..];
+
+            let handling_result = self.handle(remaining_source, chunk_size);
+
             if let Ok((name, value, size)) = handling_result {
                 tokens.push(Token { name, value });
-                for _ in 0..size - 1 {
-                    chars.next();
-                }
+                remaining_source = &remaining_source[size..];
+                chars = remaining_source.char_indices();
                 continue;
             }
 
-            let remaining_source = once(*c).chain(chars.clone()).collect::<String>();
-            let mut applied_rule = false;
             for (name, pattern) in &self.patterns {
-                if let Ok(Some(tok)) = pattern.find(&remaining_source) {
-                    tokens.push(Token {
-                        name: name.clone(),
-                        value: tok.as_str().to_string(),
-                    });
-                    for _ in 0..tok.end() - 1 {
-                        chars.next();
-                    }
-                    applied_rule = true;
-                    break;
-                }
+                let Ok(Some(tok)) = pattern.find(remaining_source) else {
+                    continue;
+                };
+
+                tokens.push(Token {
+                    name: name.clone(),
+                    value: tok.as_str().to_string(),
+                });
+
+                remaining_source = &remaining_source[tok.end()..];
+                chars = remaining_source.char_indices();
+                continue 'outer;
             }
 
-            if !(applied_rule || self.suppress_unknown) {
+            if !self.suppress_unknown {
                 return Err(Error::BadToken(handling_result.unwrap_err()));
             }
         }
@@ -323,46 +319,54 @@ impl<'a> Tokenizer<'a> {
 
     fn handle(
         &self,
-        chunk: Chain<Once<char>, Take<Chars>>,
+        remaining_source: &str,
+        chunk_size: usize,
     ) -> Result<(String, String, usize), char> {
-        let mut break_path: Option<(&String, usize)> = None;
+        let mut break_path = None;
         let mut tree = &self.tree;
-        let joined_chunk: String = chunk.clone().collect();
 
-        for (i, v) in chunk.enumerate() {
-            if let Tree::Node(ref node) = tree {
-                if let Some(t) = node.get(&None) {
-                    if let Tree::Leaf(token_name) = t {
-                        break_path = Some((token_name, i));
-                    } else {
-                        unreachable!("key None can never lead to a Node")
-                    }
-                };
+        let chunk_chars = remaining_source.char_indices().take(chunk_size);
 
-                match node.get(&Some(v)) {
-                    Some(Tree::Leaf(token_name)) => {
-                        return Ok((
-                            token_name.to_string(),
-                            joined_chunk[..=i].to_string(),
-                            i + 1,
-                        ));
-                    }
-                    Some(new_tree) => tree = new_tree,
-                    None => match node.get(&None) {
-                        None => break,
-                        Some(Tree::Leaf(token_name)) => {
-                            return Ok((token_name.to_string(), joined_chunk[..i].to_string(), i));
-                        }
-                        _ => unreachable!("key None can never lead to a Node"),
-                    },
+        for (i, v) in chunk_chars {
+            let Tree::Node(ref node) = tree else { continue };
+
+            if let Some(t) = node.get(&None) {
+                if let Tree::Leaf(token_name) = t {
+                    break_path = Some((token_name, i));
+                } else {
+                    unreachable!("key None can never lead to a Node")
                 }
+            };
+
+            match node.get(&Some(v)) {
+                Some(Tree::Leaf(token_name)) => {
+                    return Ok((
+                        token_name.to_string(),
+                        remaining_source[..=i].to_string(),
+                        i + 1,
+                    ));
+                }
+                Some(new_tree) => tree = new_tree,
+                None => match node.get(&None) {
+                    None => break,
+                    Some(Tree::Leaf(token_name)) => {
+                        return Ok((token_name.to_string(), remaining_source[..i].to_string(), i));
+                    }
+                    _ => unreachable!("key None can never lead to a Node"),
+                },
             }
         }
+
+        let joined_chunk = remaining_source
+            .chars()
+            .take(chunk_size)
+            .collect::<String>();
+        let joined_chunk_len = joined_chunk.len();
 
         if let Tree::Node(ref node) = tree {
             if let Some(t) = node.get(&None) {
                 if let Tree::Leaf(token_name) = t {
-                    break_path = Some((token_name, joined_chunk.len()));
+                    break_path = Some((token_name, joined_chunk_len));
                 } else {
                     unreachable!("key None can never lead to a Node")
                 }
@@ -371,35 +375,32 @@ impl<'a> Tokenizer<'a> {
             match node.get(&None) {
                 None => {}
                 Some(Tree::Leaf(token_name)) => {
-                    return Ok((
-                        token_name.to_string(),
-                        joined_chunk.to_string(),
-                        joined_chunk.len(),
-                    ));
+                    return Ok((token_name.to_string(), joined_chunk, joined_chunk_len));
                 }
                 _ => unreachable!("key None can never lead to a Node"),
             }
         }
 
-        if let Some((s, u)) = break_path {
+        if let Some((s, len)) = break_path {
             return Ok((
                 s.to_string(),
-                if let Some(value) = flip_hashmap(&self.literals).get(s.as_str()) {
-                    (*value).to_string()
+                // FIXME: don't flip the hashmap every time, try caching it somewhere
+                if let Some(&value) = flip_hashmap(&self.literals).get(s.as_str()) {
+                    value.to_string()
                 } else {
                     return Err(s.chars().next().expect("the token will never be unnamed"));
                 },
-                u,
+                len,
             ));
         }
 
-        let chunk_len = joined_chunk.len();
-        match self.literals.get(&joined_chunk.as_str()) {
-            Some(name) => Ok(((*name).to_string(), joined_chunk, chunk_len)),
-            None => Err(joined_chunk
+        if let Some(&name) = self.literals.get(joined_chunk.as_str()) {
+            Ok((name.to_string(), joined_chunk, joined_chunk_len))
+        } else {
+            Err(joined_chunk
                 .chars()
                 .next()
-                .expect("the chunk will never be empty")),
+                .expect("the chunk will never be empty"))
         }
     }
 
