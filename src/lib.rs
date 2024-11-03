@@ -524,7 +524,7 @@ impl<'a> Tokenizer<'a> {
     }
 }
 
-impl<'a> Default for Tokenizer<'a> {
+impl Default for Tokenizer<'_> {
     fn default() -> Self {
         Self::new(&HashMap::new(), Vec::new(), Vec::new(), true, false, false)
             .expect("an empty tokenizer should be correct")
