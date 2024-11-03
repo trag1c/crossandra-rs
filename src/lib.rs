@@ -228,7 +228,10 @@ impl<'a> Tokenizer<'a> {
                 .chain(WHITESPACE)
                 .collect()
         } else {
-            HashSet::from_iter(self.ignored_characters.clone())
+            self.ignored_characters
+                .iter()
+                .copied()
+                .collect::<HashSet<_>>()
         }
     }
 
