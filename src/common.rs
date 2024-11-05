@@ -3,7 +3,18 @@ use lazy_static::lazy_static;
 
 const STRING_BASE: &str = r".*?(?<!\\)(\\\\)*?";
 const INT_BASE: &str = r"[0-9](?:[0-9_]*[0-9])?";
-const FLOAT_BASE: &str = r"[0-9](?:[0-9_]*[0-9])?(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)|(?:[0-9](?:[0-9_]*[0-9])?\.(?:[0-9](?:[0-9_]*[0-9])?)?|\.[0-9](?:[0-9_]*[0-9])?)(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)?";
+const FLOAT_BASE: &str = concat!(
+    r"[0-9](?:[0-9_]*[0-9])?",                // integer part (required)
+    r"(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)",  // exponent (required)
+    r"|",                                     // or
+    r"(?:",                                   // mantissa {
+    r"[0-9](?:[0-9_]*[0-9])?",                //   integer part (required)
+    r"\.(?:[0-9](?:[0-9_]*[0-9])?)?",         //   decimal part (optional)
+    r"|",                                     //   or
+    r"\.[0-9](?:[0-9_]*[0-9])?",              //   decimal part (required)
+    r")",                                     // }
+    r"(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)?"  // exponent (optional)
+);
 
 lazy_static! {
     /// A single character enclosed in single quotes (e.g. `'h'`).
@@ -354,7 +365,11 @@ mod tests {
     fn unsigned_number() {
         test_patterns(
             &prepare_tokenizer(common::UNSIGNED_NUMBER.clone()),
-            vec![("1", Ok(vec!["1"])), ("1.0", Ok(vec!["1.0"])), ("1_0.0_0", Ok(vec!["1_0.0_0"]))],
+            vec![
+                ("1", Ok(vec!["1"])),
+                ("1.0", Ok(vec!["1.0"])),
+                ("1_0.0_0", Ok(vec!["1_0.0_0"])),
+            ],
         );
     }
 
@@ -376,7 +391,10 @@ mod tests {
     fn int() {
         test_patterns(
             &prepare_tokenizer(common::INT.clone()),
-            vec![("10+200-3000-4_000", Ok(vec!["10", "+200", "-3000", "-4_000"]))],
+            vec![(
+                "10+200-3000-4_000",
+                Ok(vec!["10", "+200", "-3000", "-4_000"]),
+            )],
         );
     }
 
