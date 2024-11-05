@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 
 const STRING_BASE: &str = r".*?(?<!\\)(\\\\)*?";
 const INT_BASE: &str = r"[0-9](?:[0-9_]*[0-9])?";
-const FLOAT_BASE: &str = r"[0-9](?:[0-9_]*[0-9])?(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)|(?:[0-9](?:[0-9_]*[0-9])?\.[0-9]*|\.[0-9]+)(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)?";
+const FLOAT_BASE: &str = r"[0-9](?:[0-9_]*[0-9])?(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)|(?:[0-9](?:[0-9_]*[0-9])?\.(?:[0-9](?:[0-9_]*[0-9])?)?|\.[0-9](?:[0-9_]*[0-9])?)(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)?";
 
 lazy_static! {
     /// A single character enclosed in single quotes (e.g. `'h'`).
@@ -35,7 +35,7 @@ lazy_static! {
     /// A decimal value (e.g. `3.14`).
     pub static ref DECIMAL: (String, String) = (
         "decimal".into(),
-        format!(r"{INT_BASE}\.(?:[0-9]+)?|\.[0-9]+")
+        format!(r"{INT_BASE}\.(?:{INT_BASE})?|\.{INT_BASE}")
     );
     /// An unsigned floating point value (e.g. `1e3`).
     pub static ref UNSIGNED_FLOAT: (String, String) = ("unsigned_float".into(), FLOAT_BASE.into());
@@ -243,6 +243,8 @@ mod tests {
                 ("3.14", Ok(vec!["3.14"])),
                 ("3.0", Ok(vec!["3.0"])),
                 ("21.37", Ok(vec!["21.37"])),
+                ("2_1.37", Ok(vec!["2_1.37"])),
+                ("2_1.3_7", Ok(vec!["2_1.3_7"])),
                 ("0.92", Ok(vec!["0.92"])),
                 ("0000.92", Ok(vec!["0000.92"])),
                 (".92", Ok(vec![".92"])),
@@ -320,6 +322,7 @@ mod tests {
                 ("1.0e3", Ok(vec!["1.0e3"])),
                 ("1.0e+3", Ok(vec!["1.0e+3"])),
                 ("1.0e-3", Ok(vec!["1.0e-3"])),
+                ("1_0.5_0e-3_0", Ok(vec!["1_0.5_0e-3_0"])),
                 ("1.0e", Err('e')),
             ],
         );
@@ -341,6 +344,7 @@ mod tests {
                 ("-1.0e3", Ok(vec!["-1.0e3"])),
                 ("+1.0e+3", Ok(vec!["+1.0e+3"])),
                 ("-1.0e-3", Ok(vec!["-1.0e-3"])),
+                ("-1_0.5_0e-3_0", Ok(vec!["-1_0.5_0e-3_0"])),
                 ("+1.0e", Err('e')),
             ],
         );
@@ -350,7 +354,7 @@ mod tests {
     fn unsigned_number() {
         test_patterns(
             &prepare_tokenizer(common::UNSIGNED_NUMBER.clone()),
-            vec![("1", Ok(vec!["1"])), ("1.0", Ok(vec!["1.0"]))],
+            vec![("1", Ok(vec!["1"])), ("1.0", Ok(vec!["1.0"])), ("1_0.0_0", Ok(vec!["1_0.0_0"]))],
         );
     }
 
@@ -360,6 +364,7 @@ mod tests {
             &prepare_tokenizer(common::SIGNED_NUMBER.clone()),
             vec![
                 ("+1", Ok(vec!["+1"])),
+                ("+1_0", Ok(vec!["+1_0"])),
                 ("-1.0", Ok(vec!["-1.0"])),
                 ("1", Err('1')),
                 ("1.0", Err('1')),
@@ -371,7 +376,7 @@ mod tests {
     fn int() {
         test_patterns(
             &prepare_tokenizer(common::INT.clone()),
-            vec![("10+200-3000", Ok(vec!["10", "+200", "-3000"]))],
+            vec![("10+200-3000-4_000", Ok(vec!["10", "+200", "-3000", "-4_000"]))],
         );
     }
 
@@ -380,6 +385,7 @@ mod tests {
         test_patterns(
             &prepare_tokenizer(common::FLOAT.clone()),
             vec![
+                ("8_192.8_3-77641702.4", Ok(vec!["8_192.8_3", "-77641702.4"])),
                 ("8.83-77641702.4", Ok(vec!["8.83", "-77641702.4"])),
                 ("-497e4815.0+19.", Ok(vec!["-497e4815", ".0", "+19."])),
                 ("-25.-7.6320036.8", Ok(vec!["-25.", "-7.6320036", ".8"])),
@@ -396,6 +402,7 @@ mod tests {
         test_patterns(
             &prepare_tokenizer(common::NUMBER.clone()),
             vec![
+                ("+8_192.8_3", Ok(vec!["+8_192.8_3"])),
                 ("45692.+3795+74-e35.+", Err('-')),
                 ("70-.8-", Err('-')),
                 ("-", Err('-')),
