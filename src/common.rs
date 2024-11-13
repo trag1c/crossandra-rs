@@ -83,7 +83,6 @@ mod tests {
 
     fn prepare_tokenizer<'a>(pattern: (String, String)) -> Tokenizer<'a> {
         Tokenizer::default()
-            .with_convert_crlf(false)
             .with_patterns(vec![pattern])
             .expect("the pattern should be valid")
     }

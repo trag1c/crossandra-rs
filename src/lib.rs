@@ -116,9 +116,6 @@ impl<T: Into<String>> From<(T, T)> for Token {
 ///
 /// ## Other options
 ///
-/// ### `convert_crlf`
-/// Whether to convert `\r\n` to `\n` before tokenization. Defaults to `true`.
-///
 /// ### `ignore_whitespace`
 /// Whether to ignore the following whitespace characters:
 ///
@@ -151,7 +148,6 @@ impl<T: Into<String>> From<(T, T)> for Token {
 pub struct Tokenizer<'a> {
     literals: HashMap<&'a str, &'a str>,
     patterns: Vec<(String, Regex)>,
-    convert_crlf: bool,
     ignore_whitespace: bool,
     ignored_characters: Vec<char>,
     suppress_unknown: bool,
@@ -161,7 +157,6 @@ pub struct Tokenizer<'a> {
 impl PartialEq for Tokenizer<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.literals == other.literals
-            && self.convert_crlf == other.convert_crlf
             && self.ignore_whitespace == other.ignore_whitespace
             && self.ignored_characters == other.ignored_characters
             && self.suppress_unknown == other.suppress_unknown
@@ -191,7 +186,6 @@ impl<'a> Tokenizer<'a> {
         literals: &HashMap<&'a str, &'a str>,
         patterns: Vec<(String, String)>,
         ignored_characters: Vec<char>,
-        convert_crlf: bool,
         ignore_whitespace: bool,
         suppress_unknown: bool,
     ) -> Result<Self, Error> {
@@ -201,7 +195,6 @@ impl<'a> Tokenizer<'a> {
             tree: generate_tree(&literals),
             literals,
             patterns: patterns::prepare(patterns)?,
-            convert_crlf,
             ignored_characters,
             ignore_whitespace,
             suppress_unknown,
@@ -210,14 +203,6 @@ impl<'a> Tokenizer<'a> {
 
     fn can_use_fast_mode(&self) -> bool {
         self.patterns.is_empty() && self.literals.keys().all(|v| v.len() == 1)
-    }
-
-    fn prepare_source(&self, source: &str) -> String {
-        if self.convert_crlf {
-            source.replace("\r\n", "\n")
-        } else {
-            source.to_string()
-        }
     }
 
     fn prepare_ignored(&self) -> HashSet<char> {
@@ -248,12 +233,11 @@ impl<'a> Tokenizer<'a> {
     ///
     /// This function will return an error if an invalid token is found but not suppressed.
     pub fn tokenize(&self, source: &str) -> Result<Vec<Token>, Error> {
-        let source = self.prepare_source(source);
         let ignored = self.prepare_ignored();
         if self.can_use_fast_mode() {
-            self.tokenize_fast(&source, &ignored, &self.prepare_literal_map())
+            self.tokenize_fast(source, &ignored, &self.prepare_literal_map())
         } else {
-            self.tokenize_core(&source, &ignored)
+            self.tokenize_core(source, &ignored)
         }
     }
 
@@ -265,7 +249,6 @@ impl<'a> Tokenizer<'a> {
     /// This function will return an error if any line fails to tokenize.
     pub fn tokenize_lines(&self, source: &str) -> Result<Vec<Vec<Token>>, Error> {
         let ignored = self.prepare_ignored();
-        let source = self.prepare_source(source);
         let func: Box<InnerTokenizerFn> = if self.can_use_fast_mode() {
             let literal_map = self.prepare_literal_map();
             Box::new(move |line| self.tokenize_fast(line, &ignored, &literal_map))
@@ -456,13 +439,6 @@ impl<'a> Tokenizer<'a> {
         self
     }
 
-    /// Sets the [CRLF conversion](Tokenizer#convert_crlf) of this [`Tokenizer`] and returns itself.
-    #[must_use]
-    pub fn with_convert_crlf(mut self, convert_crlf: bool) -> Self {
-        self.convert_crlf = convert_crlf;
-        self
-    }
-
     /// Sets the [`ignore_whitespace`](Tokenizer#ignore_whitespace) option of this [`Tokenizer`] and
     /// returns itself.
     #[must_use]
@@ -508,11 +484,6 @@ impl<'a> Tokenizer<'a> {
         self.ignored_characters = ignored_characters;
     }
 
-    /// Sets the [CRLF conversion](Tokenizer#convert_crlf) of this [`Tokenizer`].
-    pub fn set_convert_crlf(&mut self, convert_crlf: bool) {
-        self.convert_crlf = convert_crlf;
-    }
-
     /// Sets the [`ignore_whitespace`](Tokenizer#ignore_whitespace) option of this [`Tokenizer`].
     pub fn set_ignore_whitespace(&mut self, ignore_whitespace: bool) {
         self.ignore_whitespace = ignore_whitespace;
@@ -526,7 +497,7 @@ impl<'a> Tokenizer<'a> {
 
 impl Default for Tokenizer<'_> {
     fn default() -> Self {
-        Self::new(&HashMap::new(), Vec::new(), Vec::new(), true, false, false)
+        Self::new(&HashMap::new(), Vec::new(), Vec::new(), false, false)
             .expect("an empty tokenizer should be correct")
     }
 }
@@ -603,19 +574,6 @@ mod tests {
     }
 
     #[test]
-    fn source_preparation() {
-        let tests = [(true, "foo\nbar"), (false, "foo\r\nbar")];
-        for (convert_crlf, expected) in tests {
-            assert_eq!(
-                Tokenizer::default()
-                    .with_convert_crlf(convert_crlf)
-                    .prepare_source("foo\r\nbar"),
-                expected
-            );
-        }
-    }
-
-    #[test]
     fn ignored_preparation() {
         let tests = [
             (vec![], false, HashSet::new()),
@@ -659,7 +617,6 @@ mod tests {
         );
         assert_ne!(def, Tokenizer::default().with_ignore_whitespace(true));
         assert_ne!(def, Tokenizer::default().with_suppress_unknown(true));
-        assert_ne!(def, Tokenizer::default().with_convert_crlf(false));
         assert_ne!(
             def,
             Tokenizer::default()
@@ -687,7 +644,6 @@ mod tests {
         let ignored_chars = vec!['x'];
 
         let mut tok1 = Tokenizer::default();
-        tok1.set_convert_crlf(false);
         tok1.set_ignore_whitespace(true);
         tok1.set_suppress_unknown(true);
         tok1.set_ignored_characters(ignored_chars.clone());
@@ -695,7 +651,6 @@ mod tests {
         tok1.set_patterns(patterns.clone()).unwrap();
 
         let tok2 = Tokenizer::default()
-            .with_convert_crlf(false)
             .with_ignore_whitespace(true)
             .with_suppress_unknown(true)
             .with_ignored_characters(ignored_chars.clone())
@@ -704,7 +659,7 @@ mod tests {
             .with_patterns(patterns.clone())
             .unwrap();
 
-        let tok3 = Tokenizer::new(&literals, patterns, ignored_chars, false, true, true).unwrap();
+        let tok3 = Tokenizer::new(&literals, patterns, ignored_chars, true, true).unwrap();
 
         assert_eq!(tok1, tok2);
         assert_eq!(tok1, tok3);
@@ -912,43 +867,30 @@ mod tests {
     #[test]
     fn whitespace_tokenization() {
         let (cr, ln, space) = (("cr", "\r"), ("ln", "\n"), ("space", " "));
-        let mut tok = Tokenizer::default()
+        let tok = Tokenizer::default()
             .with_literals(&[cr, ln, space].into())
             .unwrap();
         let source = " \r\n \r \n ";
 
-        let tests = [
-            (
-                true,
-                vec![space, ln, space, cr, space, ln, space],
-                vec![
-                    vec![Token::from(space)],
-                    make_output(vec![space, cr, space]),
-                    vec![Token::from(space)],
-                ],
-            ),
-            (
-                false,
-                vec![space, cr, ln, space, cr, space, ln, space],
-                vec![
-                    make_output(vec![space, cr]),
-                    make_output(vec![space, cr, space]),
-                    vec![Token::from(space)],
-                ],
-            ),
-        ];
-        for (convert_crlf, single_line_output, multi_line_output) in tests {
-            tok.set_convert_crlf(convert_crlf);
-            let Ok(tokens) = tok.tokenize(source) else {
-                panic!("tokenization failed");
-            };
-            assert_eq!(tokens, make_output(single_line_output));
+        let Ok(tokens) = tok.tokenize(source) else {
+            panic!("tokenization failed");
+        };
+        assert_eq!(
+            tokens,
+            make_output(vec![space, cr, ln, space, cr, space, ln, space])
+        );
 
-            let Ok(lines) = tok.tokenize_lines(source) else {
-                panic!("tokenization failed");
-            };
-            assert_eq!(lines, multi_line_output);
-        }
+        let Ok(lines) = tok.tokenize_lines(source) else {
+            panic!("tokenization failed");
+        };
+        assert_eq!(
+            lines,
+            vec![
+                make_output(vec![space, cr]),
+                make_output(vec![space, cr, space]),
+                vec![Token::from(space)],
+            ]
+        );
     }
 
     #[test]
