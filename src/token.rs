@@ -1,6 +1,6 @@
 /// Represents a lexical token with a name/type and its raw value from the source code.
 ///
-/// Used to represent the output of the [`Tokenizer`] struct.
+/// Used to represent the output of the [`Tokenizer`][crate::Tokenizer] struct.
 ///
 /// # Examples
 /// ```
