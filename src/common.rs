@@ -89,16 +89,17 @@ mod tests {
 
     fn test_patterns(tokenizer: &Tokenizer<'_>, tests: Vec<(&str, Result<Vec<&str>, char>)>) {
         for (inp, out) in tests {
-            match (tokenizer.tokenize(inp), out) {
-                (Ok(tokens), Ok(expected_values)) => {
-                    let values = tokens
-                        .iter()
+            match (tokenizer.tokenize(inp).find(Result::is_err), out) {
+                (Some(Err(Error::BadToken(bad_token))), Err(expected_bad_token)) => {
+                    assert_eq!(bad_token, expected_bad_token);
+                }
+                (None, Ok(expected_values)) => {
+                    let values = tokenizer
+                        .tokenize(inp)
+                        .map(Result::unwrap)
                         .map(|Token { name: _name, value }| value.clone())
                         .collect::<Vec<String>>();
                     assert_eq!(values, expected_values);
-                }
-                (Err(Error::BadToken(bad_token)), Err(expected_bad_token)) => {
-                    assert_eq!(bad_token, expected_bad_token);
                 }
                 (res, exp) => {
                     panic!("Mismatched result for input {inp:?}: got {res:?}, expected {exp:?}")

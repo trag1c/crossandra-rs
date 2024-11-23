@@ -17,13 +17,10 @@
 //!         ("begin_loop", "["),
 //!         ("end_loop", "]"),
 //!     ].into())
-//!     .expect("all literals should be ≥1 characters long")
-//!     .with_suppress_unknown(true);
+//!     .expect("all literals should be ≥1 characters long");
 //!
-//! # assert!(bf_tok.tokenize("cat program: ,[.,]").is_ok());
-//! match bf_tok.tokenize("cat program: ,[.,]") {
-//!     Ok(tokens) => println!("{tokens:?}"),
-//!     Err(e) => eprintln!("An error occurred: {e}"),
+//! for token in bf_tok.tokenize("cat program: ,[.,]").filter_map(Result::ok) {
+//!    println!("{:?}", token);
 //! }
 //! # }
 //! ```
@@ -35,6 +32,8 @@ pub mod common;
 
 mod error;
 use error::Error;
+
+mod stream;
 
 mod token;
 pub use token::Token;
@@ -106,9 +105,6 @@ const WHITESPACE: [char; 6] = [' ', '\x0c', '\t', '\x0b', '\r', '\n'];
 /// ### `ignored_characters`
 /// A set of characters to ignore during tokenization. Defaults to an empty [`Vec`].
 ///
-/// ### `suppress_unknown`
-/// Whether unknown tokens should halt tokenization or be silently ignored. Defaults to `false`.
-///
 /// ## Fast Mode
 /// When all literals are of length 1 and there are no patterns, Crossandra uses a simpler
 /// tokenization method.
@@ -122,8 +118,7 @@ pub struct Tokenizer<'a> {
     literals: HashMap<&'a str, &'a str>,
     patterns: Vec<(String, Regex)>,
     ignore_whitespace: bool,
-    ignored_characters: Vec<char>,
-    suppress_unknown: bool,
+    ignored_characters: HashSet<char>,
     tree: Tree,
 }
 
@@ -132,7 +127,6 @@ impl PartialEq for Tokenizer<'_> {
         self.literals == other.literals
             && self.ignore_whitespace == other.ignore_whitespace
             && self.ignored_characters == other.ignored_characters
-            && self.suppress_unknown == other.suppress_unknown
             && self.patterns.len() == other.patterns.len()
             && self
                 .patterns
@@ -143,8 +137,6 @@ impl PartialEq for Tokenizer<'_> {
 }
 
 impl Eq for Tokenizer<'_> {}
-
-type InnerTokenizerFn<'a> = dyn Fn(&str) -> Result<Vec<Token>, Error> + 'a;
 
 impl<'a> Tokenizer<'a> {
     /// Creates a new [`Tokenizer`] with the specified configuration.
@@ -158,19 +150,17 @@ impl<'a> Tokenizer<'a> {
     pub fn new(
         literals: &HashMap<&'a str, &'a str>,
         patterns: Vec<(String, String)>,
-        ignored_characters: Vec<char>,
+        ignored_characters: HashSet<char>,
         ignore_whitespace: bool,
-        suppress_unknown: bool,
     ) -> Result<Self, Error> {
         validate_literals(literals)?;
-        let literals = flip_hashmap(literals);
+        let literals = stream::flip_hashmap(literals);
         Ok(Self {
             tree: generate_tree(&literals),
             literals,
             patterns: patterns::prepare(patterns)?,
             ignored_characters,
             ignore_whitespace,
-            suppress_unknown,
         })
     }
 
@@ -179,208 +169,48 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn prepare_ignored(&self) -> HashSet<char> {
+        let ignored = self.ignored_characters.iter().copied();
         if self.ignore_whitespace {
-            self.ignored_characters
-                .iter()
-                .copied()
-                .chain(WHITESPACE)
-                .collect()
+            ignored.chain(WHITESPACE).collect()
         } else {
-            self.ignored_characters
-                .iter()
-                .copied()
-                .collect::<HashSet<_>>()
+            ignored.collect()
         }
     }
 
-    fn prepare_literal_map(&self) -> HashMap<char, &str> {
-        self.literals
-            .iter()
-            .map(|(&k, &v)| (k.chars().next().expect("all literals should be 1-long"), v))
-            .collect()
-    }
-
-    /// Tokenizes the given source code and returns a [`Vec`] of [`Token`]s.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if an invalid token is found but not suppressed.
-    pub fn tokenize(&self, source: &str) -> Result<Vec<Token>, Error> {
+    /// Tokenizes the given source code and returns an [`Iterator`] of [`Token`]s.
+    #[must_use]
+    pub fn tokenize(
+        &'a self,
+        source: &'a str,
+    ) -> Box<dyn Iterator<Item = Result<Token, Error>> + 'a> {
         let ignored = self.prepare_ignored();
         if self.can_use_fast_mode() {
-            self.tokenize_fast(source, &ignored, &self.prepare_literal_map())
+            let chars = source.chars();
+            if ignored.is_empty() {
+                Box::new(stream::Fast::new(self, chars))
+            } else {
+                Box::new(stream::Fast::new(
+                    self,
+                    chars.filter(move |c| !ignored.contains(c)),
+                ))
+            }
         } else {
-            self.tokenize_core(source, &ignored)
+            Box::new(stream::Core::new(self, source, ignored))
         }
     }
 
     /// Splits the given source code into lines and tokenizes each line separately.
-    /// Returns a [`Vec`] of [`Vec`]s of [`Token`]s.
+    /// Returns an [`Iterator`] of [`Vec`]s of [`Token`]s.
     ///
     /// # Errors
     ///
     /// This function will return an error if any line fails to tokenize.
-    pub fn tokenize_lines(&self, source: &str) -> Result<Vec<Vec<Token>>, Error> {
-        let ignored = self.prepare_ignored();
-        let func: Box<InnerTokenizerFn> = if self.can_use_fast_mode() {
-            let literal_map = self.prepare_literal_map();
-            Box::new(move |line| self.tokenize_fast(line, &ignored, &literal_map))
-        } else {
-            Box::new(|line| self.tokenize_core(line, &ignored))
-        };
-        source.split('\n').map(func).collect()
-    }
-
-    fn tokenize_core(
-        &self,
-        source: &str,
-        ignored_characters: &HashSet<char>,
-    ) -> Result<Vec<Token>, Error> {
-        let mut tokens = Vec::new();
-        let chunk_size = self.literals.keys().map(|x| x.len()).max().unwrap_or(1);
-
-        let mut remaining_source = source;
-        let mut chars = source.char_indices();
-
-        'outer: while let Some((index, _)) = chars.find(|(_, c)| !ignored_characters.contains(c)) {
-            remaining_source = &remaining_source[index..];
-
-            let handling_result = self.handle(remaining_source, chunk_size);
-
-            if let Ok((name, value, size)) = handling_result {
-                tokens.push(Token { name, value });
-                remaining_source = &remaining_source[size..];
-                chars = remaining_source.char_indices();
-                continue;
-            }
-
-            for (name, pattern) in &self.patterns {
-                let Ok(Some(tok)) = pattern.find(remaining_source) else {
-                    continue;
-                };
-
-                tokens.push(Token {
-                    name: name.clone(),
-                    value: tok.as_str().to_string(),
-                });
-
-                remaining_source = &remaining_source[tok.end()..];
-                chars = remaining_source.char_indices();
-                continue 'outer;
-            }
-
-            if !self.suppress_unknown {
-                return Err(Error::BadToken(handling_result.unwrap_err()));
-            }
-        }
-        Ok(tokens)
-    }
-
-    fn handle(
-        &self,
-        remaining_source: &str,
-        chunk_size: usize,
-    ) -> Result<(String, String, usize), char> {
-        let mut break_path = None;
-        let mut tree = &self.tree;
-
-        let chunk_chars = remaining_source.char_indices().take(chunk_size);
-
-        for (i, v) in chunk_chars {
-            let Tree::Node(ref node) = tree else { continue };
-
-            if let Some(t) = node.get(&None) {
-                if let Tree::Leaf(token_name) = t {
-                    break_path = Some((token_name, i));
-                } else {
-                    unreachable!("key None can never lead to a Node")
-                }
-            };
-
-            match node.get(&Some(v)) {
-                Some(Tree::Leaf(token_name)) => {
-                    return Ok((
-                        token_name.to_string(),
-                        remaining_source[..=i].to_string(),
-                        i + 1,
-                    ));
-                }
-                Some(new_tree) => tree = new_tree,
-                None => match node.get(&None) {
-                    None => break,
-                    Some(Tree::Leaf(token_name)) => {
-                        return Ok((token_name.to_string(), remaining_source[..i].to_string(), i));
-                    }
-                    _ => unreachable!("key None can never lead to a Node"),
-                },
-            }
-        }
-
-        let joined_chunk = remaining_source
-            .chars()
-            .take(chunk_size)
-            .collect::<String>();
-        let joined_chunk_len = joined_chunk.len();
-
-        if let Tree::Node(ref node) = tree {
-            if let Some(t) = node.get(&None) {
-                if let Tree::Leaf(token_name) = t {
-                    break_path = Some((token_name, joined_chunk_len));
-                } else {
-                    unreachable!("key None can never lead to a Node")
-                }
-            };
-
-            match node.get(&None) {
-                None => {}
-                Some(Tree::Leaf(token_name)) => {
-                    return Ok((token_name.to_string(), joined_chunk, joined_chunk_len));
-                }
-                _ => unreachable!("key None can never lead to a Node"),
-            }
-        }
-
-        if let Some((s, len)) = break_path {
-            return Ok((
-                s.to_string(),
-                // FIXME: don't flip the hashmap every time, try caching it somewhere
-                if let Some(&value) = flip_hashmap(&self.literals).get(s.as_str()) {
-                    value.to_string()
-                } else {
-                    return Err(s.chars().next().expect("the token will never be unnamed"));
-                },
-                len,
-            ));
-        }
-
-        if let Some(&name) = self.literals.get(joined_chunk.as_str()) {
-            Ok((name.to_string(), joined_chunk, joined_chunk_len))
-        } else {
-            Err(joined_chunk
-                .chars()
-                .next()
-                .expect("the chunk will never be empty"))
-        }
-    }
-
-    fn tokenize_fast(
-        &self,
-        source: &str,
-        ignored_characters: &HashSet<char>,
-        literal_map: &HashMap<char, &str>,
-    ) -> Result<Vec<Token>, Error> {
-        let mut tokens: Vec<Token> = Vec::new();
-        for char in source.chars().filter(|c| !ignored_characters.contains(c)) {
-            if let Some(&name) = literal_map.get(&char) {
-                tokens.push(Token {
-                    name: name.to_string(),
-                    value: char.to_string(),
-                });
-            } else if !self.suppress_unknown {
-                return Err(Error::BadToken(char));
-            }
-        }
-        Ok(tokens)
+    #[must_use]
+    pub fn tokenize_lines(
+        &'a self,
+        source: &'a str,
+    ) -> Box<dyn Iterator<Item = Result<Vec<Token>, Error>> + 'a> {
+        Box::new(source.split('\n').map(|line| self.tokenize(line).collect()))
     }
 
     /// Sets the [literals](Tokenizer#literals) of this [`Tokenizer`] and returns itself.
@@ -407,7 +237,7 @@ impl<'a> Tokenizer<'a> {
     /// Sets the [ignored characters](Tokenizer#ignored_characters) of this [`Tokenizer`] and
     /// returns itself.
     #[must_use]
-    pub fn with_ignored_characters(mut self, ignored_characters: Vec<char>) -> Self {
+    pub fn with_ignored_characters(mut self, ignored_characters: HashSet<char>) -> Self {
         self.ignored_characters = ignored_characters;
         self
     }
@@ -420,14 +250,6 @@ impl<'a> Tokenizer<'a> {
         self
     }
 
-    /// Sets the [`suppress_unknown`](Tokenizer#suppress_unknown) option of this [`Tokenizer`] and
-    /// returns itself.
-    #[must_use]
-    pub fn with_suppress_unknown(mut self, suppress_unknown: bool) -> Self {
-        self.suppress_unknown = suppress_unknown;
-        self
-    }
-
     /// Sets the [literals](Tokenizer#literals) of this [`Tokenizer`].
     ///
     /// # Errors
@@ -435,7 +257,7 @@ impl<'a> Tokenizer<'a> {
     /// This function will return an error if any literal is empty.
     pub fn set_literals(&mut self, literals: &HashMap<&'a str, &'a str>) -> Result<(), Error> {
         validate_literals(literals)?;
-        self.literals = flip_hashmap(literals);
+        self.literals = stream::flip_hashmap(literals);
         self.tree = generate_tree(&self.literals);
         Ok(())
     }
@@ -453,7 +275,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     /// Sets the [ignored characters](Tokenizer#ignored_characters) of this [`Tokenizer`].
-    pub fn set_ignored_characters(&mut self, ignored_characters: Vec<char>) {
+    pub fn set_ignored_characters(&mut self, ignored_characters: HashSet<char>) {
         self.ignored_characters = ignored_characters;
     }
 
@@ -461,22 +283,13 @@ impl<'a> Tokenizer<'a> {
     pub fn set_ignore_whitespace(&mut self, ignore_whitespace: bool) {
         self.ignore_whitespace = ignore_whitespace;
     }
-
-    /// Sets the [`suppress_unknown`](Tokenizer#suppress_unknown) option of this [`Tokenizer`].
-    pub fn set_suppress_unknown(&mut self, suppress_unknown: bool) {
-        self.suppress_unknown = suppress_unknown;
-    }
 }
 
 impl Default for Tokenizer<'_> {
     fn default() -> Self {
-        Self::new(&HashMap::new(), Vec::new(), Vec::new(), false, false)
+        Self::new(&HashMap::new(), Vec::new(), HashSet::new(), false)
             .expect("an empty tokenizer should be correct")
     }
-}
-
-fn flip_hashmap<'a>(hm: &HashMap<&'a str, &'a str>) -> HashMap<&'a str, &'a str> {
-    hm.iter().map(|(&k, &v)| (v, k)).collect()
 }
 
 fn validate_literals<'a>(literals: &HashMap<&'a str, &'a str>) -> Result<(), Error> {
@@ -489,14 +302,7 @@ fn validate_literals<'a>(literals: &HashMap<&'a str, &'a str>) -> Result<(), Err
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        common,
-        error::Error,
-        flip_hashmap,
-        tree::{generate_tree, Tree},
-        validate_literals, Token, Tokenizer,
-    };
-    use std::collections::{HashMap, HashSet};
+    use super::*;
 
     #[test]
     fn literal_validation_err() {
@@ -509,15 +315,6 @@ mod tests {
     #[test]
     fn literal_validation_ok() {
         assert!(validate_literals(&HashMap::from([("x", "x"), ("", "y")])).is_ok());
-    }
-
-    #[test]
-    fn flip_hashmap_ok() {
-        assert_eq!(flip_hashmap(&HashMap::new()), HashMap::new());
-        assert_eq!(
-            flip_hashmap(&HashMap::from([("a", "b"), ("c", "d")])),
-            HashMap::from([("b", "a"), ("d", "c")])
-        );
     }
 
     #[test]
@@ -549,10 +346,10 @@ mod tests {
     #[test]
     fn ignored_preparation() {
         let tests = [
-            (vec![], false, HashSet::new()),
-            (vec!['a', 'b', 'c'], false, "abc".chars().collect()),
+            ([].into(), false, HashSet::new()),
+            (['a', 'b', 'c'].into(), false, "abc".chars().collect()),
             (
-                vec!['a', 'b', 'c'],
+                ['a', 'b', 'c'].into(),
                 true,
                 "abc \x0c\t\x0b\r\n".chars().collect(),
             ),
@@ -569,17 +366,6 @@ mod tests {
     }
 
     #[test]
-    fn literal_map_preparation() {
-        assert_eq!(
-            Tokenizer::default()
-                .with_literals(&HashMap::from([("x", "a"), ("y", "b")]))
-                .unwrap()
-                .prepare_literal_map(),
-            HashMap::from([('a', "x"), ('b', "y")])
-        );
-    }
-
-    #[test]
     fn comparison() {
         let def = Tokenizer::default();
         assert_eq!(def, Tokenizer::default());
@@ -589,7 +375,6 @@ mod tests {
             Tokenizer::default().with_ignored_characters(['x'].into())
         );
         assert_ne!(def, Tokenizer::default().with_ignore_whitespace(true));
-        assert_ne!(def, Tokenizer::default().with_suppress_unknown(true));
         assert_ne!(
             def,
             Tokenizer::default()
@@ -614,25 +399,23 @@ mod tests {
     fn builder_equivalence() {
         let literals = HashMap::from([("a", "b")]);
         let patterns = vec![(String::from("a"), String::from("b"))];
-        let ignored_chars = vec!['x'];
+        let ignored_chars: HashSet<_> = ['x'].into();
 
         let mut tok1 = Tokenizer::default();
         tok1.set_ignore_whitespace(true);
-        tok1.set_suppress_unknown(true);
         tok1.set_ignored_characters(ignored_chars.clone());
         tok1.set_literals(&literals).unwrap();
         tok1.set_patterns(patterns.clone()).unwrap();
 
         let tok2 = Tokenizer::default()
             .with_ignore_whitespace(true)
-            .with_suppress_unknown(true)
             .with_ignored_characters(ignored_chars.clone())
             .with_literals(&literals)
             .unwrap()
             .with_patterns(patterns.clone())
             .unwrap();
 
-        let tok3 = Tokenizer::new(&literals, patterns, ignored_chars, true, true).unwrap();
+        let tok3 = Tokenizer::new(&literals, patterns, ignored_chars, true).unwrap();
 
         assert_eq!(tok1, tok2);
         assert_eq!(tok1, tok3);
@@ -672,12 +455,12 @@ mod tests {
     fn empty_tokenizer() {
         let tok = Tokenizer::default();
 
-        assert!(matches!(tok.tokenize(""), Ok(v) if v.is_empty()));
+        assert!(tok.tokenize("").next().is_none());
 
-        match tok.tokenize("source") {
-            Err(Error::BadToken(c)) => assert_eq!(c, 's'),
+        match tok.tokenize("source").next() {
+            Some(Err(Error::BadToken(c))) => assert_eq!(c, 's'),
             _ => panic!("tokenization didn't fail with BadToken"),
-        }
+        };
     }
 
     #[test]
@@ -695,7 +478,7 @@ mod tests {
             ]))
             .unwrap();
 
-        if let Ok(tokens) = tok.tokenize(",[.,]") {
+        if let Ok(tokens) = tok.tokenize(",[.,]").collect::<Result<Vec<_>, _>>() {
             assert!(tokens
                 .iter()
                 .map(|t| t.name.clone())
@@ -770,11 +553,15 @@ mod tests {
             )
             .unwrap()
             .with_patterns(vec![common::INT.clone()])
-            .unwrap()
-            .with_suppress_unknown(true);
+            .unwrap();
 
         for (input, output) in tests {
-            assert_eq!(tok.tokenize(input).expect("tokenization failed"), output);
+            assert_eq!(
+                tok.tokenize(input)
+                    .filter_map(Result::ok)
+                    .collect::<Vec<_>>(),
+                output
+            );
         }
     }
 
@@ -784,7 +571,10 @@ mod tests {
             .with_ignore_whitespace(true)
             .with_patterns(vec![common::WORD.clone()])
             .unwrap();
-        let Ok(lines) = tok.tokenize_lines("a b\nc\rde") else {
+        let Ok(lines) = tok
+            .tokenize_lines("a b\nc\rde")
+            .collect::<Result<Vec<Vec<Token>>, _>>()
+        else {
             panic!("tokenization failed");
         };
         assert_eq!(
@@ -797,12 +587,31 @@ mod tests {
     }
 
     #[test]
+    fn line_tokenization_fast() {
+        let (a, b) = (("a", "a"), ("b", "b"));
+        let tok = Tokenizer::default()
+            .with_ignore_whitespace(true)
+            .with_literals(&[a, b].into())
+            .unwrap();
+        let Ok(lines) = tok
+            .tokenize_lines("a b\nb\ra")
+            .collect::<Result<Vec<Vec<Token>>, _>>()
+        else {
+            panic!("tokenization failed");
+        };
+        assert_eq!(
+            lines,
+            vec![make_output(vec![a, b]), make_output(vec![b, a])]
+        );
+    }
+
+    #[test]
     fn breakpoint_tokenization() {
         let (x, y, z) = (("x", "abc"), ("y", "a"), ("z", "b"));
         let tok = Tokenizer::default()
             .with_literals(&[x, y, z].into())
             .unwrap();
-        let Ok(tokens) = tok.tokenize("ababaababc") else {
+        let Ok(tokens) = tok.tokenize("ababaababc").collect::<Result<Vec<_>, _>>() else {
             panic!("tokenization failed");
         };
         assert_eq!(tokens, make_output(vec![y, z, y, z, y, y, z, x]));
@@ -815,7 +624,7 @@ mod tests {
             .with_literals(&literals.into())
             .unwrap()
             .with_ignored_characters(['z'].into());
-        let Ok(tokens) = tok.tokenize("xzy") else {
+        let Ok(tokens) = tok.tokenize("xzy").collect::<Result<Vec<_>, _>>() else {
             panic!("tokenization failed");
         };
         assert_eq!(tokens, make_output(literals.into()));
@@ -828,7 +637,10 @@ mod tests {
             .with_literals(&[foo, bar].into())
             .unwrap()
             .with_ignored_characters(['z'].into());
-        let Ok(tokens) = tok.tokenize("zxzyzxzyzzzyzzxzyzzzxzz") else {
+        let Ok(tokens) = tok
+            .tokenize("zxzyzxzyzzzyzzxzyzzzxzz")
+            .collect::<Result<Vec<_>, _>>()
+        else {
             panic!("tokenization failed");
         };
         assert_eq!(
@@ -845,7 +657,7 @@ mod tests {
             .unwrap();
         let source = " \r\n \r \n ";
 
-        let Ok(tokens) = tok.tokenize(source) else {
+        let Ok(tokens) = tok.tokenize(source).collect::<Result<Vec<_>, _>>() else {
             panic!("tokenization failed");
         };
         assert_eq!(
@@ -853,7 +665,10 @@ mod tests {
             make_output(vec![space, cr, ln, space, cr, space, ln, space])
         );
 
-        let Ok(lines) = tok.tokenize_lines(source) else {
+        let Ok(lines) = tok
+            .tokenize_lines(source)
+            .collect::<Result<Vec<Vec<Token>>, _>>()
+        else {
             panic!("tokenization failed");
         };
         assert_eq!(
@@ -869,7 +684,7 @@ mod tests {
     #[test]
     fn bad_tokenization_fast() {
         let tok = Tokenizer::default();
-        let Error::BadToken(bad_token) = tok.tokenize("x").unwrap_err() else {
+        let Some(Err(Error::BadToken(bad_token))) = tok.tokenize("x").last() else {
             panic!("tokenization didn't fail with BadToken");
         };
         assert_eq!(bad_token, 'x');
@@ -880,7 +695,7 @@ mod tests {
         let tok = Tokenizer::default()
             .with_literals(&[("xy", "xy")].into())
             .unwrap();
-        let Error::BadToken(bad_token) = tok.tokenize("xyz").unwrap_err() else {
+        let Some(Err(Error::BadToken(bad_token))) = tok.tokenize("xyz").find(Result::is_err) else {
             panic!("tokenization didn't fail with BadToken");
         };
         assert_eq!(bad_token, 'z');
