@@ -27,6 +27,7 @@
 use std::collections::{HashMap, HashSet};
 
 use fancy_regex::Regex;
+use rayon::prelude::*;
 
 pub mod common;
 
@@ -209,8 +210,8 @@ impl<'a> Tokenizer<'a> {
     pub fn tokenize_lines(
         &'a self,
         source: &'a str,
-    ) -> Box<dyn Iterator<Item = Result<Vec<Token>, Error>> + 'a> {
-        Box::new(source.split('\n').map(|line| self.tokenize(line).collect()))
+    ) -> impl ParallelIterator<Item = Result<Vec<Token>, Error>> + 'a {
+        source.par_split('\n').map(|line| self.tokenize(line).collect())
     }
 
     /// Sets the [literals](Tokenizer#literals) of this [`Tokenizer`] and returns itself.
