@@ -1,6 +1,6 @@
 #[derive(Debug)]
 pub enum Error {
-    BadToken(char),
+    BadToken(char, usize),
     DuplicatePattern(String),
     EmptyLiteral,
     InvalidRegex(Box<fancy_regex::Error>),
@@ -9,7 +9,7 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadToken(c) => write!(f, "invalid token {c:?}"),
+            Self::BadToken(c, p) => write!(f, "invalid token {c:?} at position {p}"),
             Self::DuplicatePattern(name) => write!(f, "duplicate pattern {name:?}"),
             Self::EmptyLiteral => write!(f, "literals cannot be empty"),
             Self::InvalidRegex(err) => err.fmt(f),
@@ -23,7 +23,10 @@ mod tests {
 
     #[test]
     fn error_display() {
-        assert_eq!(Error::BadToken('x').to_string(), "invalid token 'x'");
+        assert_eq!(
+            Error::BadToken('x', 7).to_string(),
+            "invalid token 'x' at position 7"
+        );
         assert_eq!(
             Error::DuplicatePattern("string".into()).to_string(),
             "duplicate pattern \"string\""

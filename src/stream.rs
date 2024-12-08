@@ -157,7 +157,10 @@ impl Iterator for Core<'_> {
             }));
         }
 
-        Some(Err(Error::BadToken(handling_result.unwrap_err())))
+        Some(Err(Error::BadToken(
+            handling_result.unwrap_err(),
+            self.position,
+        )))
     }
 }
 
@@ -199,7 +202,7 @@ where
                 value: char.to_string(),
                 position: self.position - 1,
             })),
-            None => Some(Err(Error::BadToken(char))),
+            None => Some(Err(Error::BadToken(char, self.position - 1))),
         }
     }
 }

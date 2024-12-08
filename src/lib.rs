@@ -453,7 +453,7 @@ mod tests {
         assert!(tok.tokenize("").next().is_none());
 
         match tok.tokenize("source").next() {
-            Some(Err(Error::BadToken(c))) => assert_eq!(c, 's'),
+            Some(Err(Error::BadToken(c, p))) => assert_eq!((c, p), ('s', 0)),
             _ => panic!("tokenization didn't fail with BadToken"),
         };
     }
@@ -726,10 +726,11 @@ mod tests {
     #[test]
     fn bad_tokenization_fast() {
         let tok = Tokenizer::default();
-        let Some(Err(Error::BadToken(bad_token))) = tok.tokenize("x").last() else {
+        let Some(Err(Error::BadToken(err_value, err_position))) = tok.tokenize("x").last() else {
             panic!("tokenization didn't fail with BadToken");
         };
-        assert_eq!(bad_token, 'x');
+        assert_eq!(err_value, 'x');
+        assert_eq!(err_position, 0);
     }
 
     #[test]
@@ -737,10 +738,13 @@ mod tests {
         let tok = Tokenizer::default()
             .with_literals(&[("xy", "xy")].into())
             .unwrap();
-        let Some(Err(Error::BadToken(bad_token))) = tok.tokenize("xyz").find(Result::is_err) else {
+        let Some(Err(Error::BadToken(err_value, err_position))) =
+            tok.tokenize("xyz").find(Result::is_err)
+        else {
             panic!("tokenization didn't fail with BadToken");
         };
-        assert_eq!(bad_token, 'z');
+        assert_eq!(err_value, 'z');
+        assert_eq!(err_position, 2);
     }
 
     #[test]
@@ -749,16 +753,18 @@ mod tests {
         let tok = Tokenizer::default().with_literals(&[a, b].into()).unwrap();
         let mut expected_tokens =
             make_output(vec![(a, 0), (b, 3), (b, 4), (a, 5), (a, 7)]).into_iter();
-        let expected_error_indexes = HashSet::from([1, 2, 6]);
+        let mut expected_error_indexes = [1, 2, 6].into_iter();
 
         let tokens: Vec<_> = tok.tokenize("axxbbaxa").collect();
         assert_eq!(tokens.len(), 8);
 
-        for (i, result) in tokens.iter().enumerate() {
-            if expected_error_indexes.contains(&i) {
-                assert!(matches!(result, Err(Error::BadToken('x'))));
-            } else {
-                assert_eq!(result.as_ref().unwrap(), &expected_tokens.next().unwrap());
+        for result in &tokens {
+            match result {
+                Ok(tok) => assert_eq!(tok, &expected_tokens.next().unwrap()),
+                Err(Error::BadToken(c, p)) => {
+                    assert_eq!((*c, *p), ('x', expected_error_indexes.next().unwrap()));
+                }
+                _ => panic!("unexpected error"),
             }
         }
     }
@@ -790,7 +796,8 @@ mod tests {
             );
         }
         for i in (1..tokens.len()).step_by(2) {
-            assert!(matches!(tokens[i], Err(Error::BadToken(c)) if c == expected_errors[i / 2]));
+            let expected_err = (expected_errors[i / 2], i * 2 + 1);
+            assert!(matches!(tokens[i], Err(Error::BadToken(c, p)) if (c, p) == expected_err));
         }
     }
 }
