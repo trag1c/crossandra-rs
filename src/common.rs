@@ -79,7 +79,7 @@ lazy_static! {
 
 #[cfg(test)]
 mod tests {
-    use crate::{common, error::Error, Token, Tokenizer};
+    use crate::{common, error::Error, Tokenizer};
 
     fn prepare_tokenizer<'a>(pattern: (String, String)) -> Tokenizer<'a> {
         Tokenizer::default()
@@ -97,7 +97,7 @@ mod tests {
                     let values = tokenizer
                         .tokenize(inp)
                         .map(Result::unwrap)
-                        .map(|Token { name: _name, value }| value.clone())
+                        .map(|token| token.value.clone())
                         .collect::<Vec<String>>();
                     assert_eq!(values, expected_values);
                 }

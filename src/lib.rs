@@ -186,15 +186,7 @@ impl<'a> Tokenizer<'a> {
     ) -> Box<dyn Iterator<Item = Result<Token, Error>> + 'a> {
         let ignored = self.prepare_ignored();
         if self.can_use_fast_mode() {
-            let chars = source.chars();
-            if ignored.is_empty() {
-                Box::new(stream::Fast::new(self, chars))
-            } else {
-                Box::new(stream::Fast::new(
-                    self,
-                    chars.filter(move |c| !ignored.contains(c)),
-                ))
-            }
+            Box::new(stream::Fast::new(self, source.chars(), ignored))
         } else {
             Box::new(stream::Core::new(self, source, ignored))
         }
@@ -211,7 +203,9 @@ impl<'a> Tokenizer<'a> {
         &'a self,
         source: &'a str,
     ) -> impl ParallelIterator<Item = Result<Vec<Token>, Error>> + 'a {
-        source.par_split('\n').map(|line| self.tokenize(line).collect())
+        source
+            .par_split('\n')
+            .map(|line| self.tokenize(line).collect())
     }
 
     /// Sets the [literals](Tokenizer#literals) of this [`Tokenizer`] and returns itself.
@@ -489,8 +483,11 @@ mod tests {
         };
     }
 
-    fn make_output(tokens: Vec<(&str, &str)>) -> Vec<Token> {
-        tokens.into_iter().map(Token::from).collect()
+    fn make_output(tokens: Vec<((&str, &str), usize)>) -> Vec<Token> {
+        tokens
+            .into_iter()
+            .map(|((n, v), p)| Token::from((n, v, p)))
+            .collect()
     }
 
     #[test]
@@ -499,44 +496,55 @@ mod tests {
             (
                 "2 * 2 + 3 - 7",
                 make_output(vec![
-                    ("int", "2"),
-                    ("mul", "*"),
-                    ("int", "2"),
-                    ("add", "+"),
-                    ("int", "3"),
-                    ("sub", "-"),
-                    ("int", "7"),
+                    (("int", "2"), 0),
+                    (("mul", "*"), 2),
+                    (("int", "2"), 4),
+                    (("add", "+"), 6),
+                    (("int", "3"), 8),
+                    (("sub", "-"), 10),
+                    (("int", "7"), 12),
                 ]),
             ),
             (
                 "2**3",
-                make_output(vec![("int", "2"), ("pow", "**"), ("int", "3")]),
+                make_output(vec![
+                    (("int", "2"), 0),
+                    (("pow", "**"), 1),
+                    (("int", "3"), 3),
+                ]),
             ),
-            ("-5", make_output(vec![("sub", "-"), ("int", "5")])),
+            (
+                "-5",
+                make_output(vec![(("sub", "-"), 0), (("int", "5"), 1)]),
+            ),
             (
                 "100 + -5",
                 make_output(vec![
-                    ("int", "100"),
-                    ("add", "+"),
-                    ("sub", "-"),
-                    ("int", "5"),
+                    (("int", "100"), 0),
+                    (("add", "+"), 4),
+                    (("sub", "-"), 6),
+                    (("int", "5"), 7),
                 ]),
             ),
             (
                 "4 - 2 ** 5 / 2",
                 make_output(vec![
-                    ("int", "4"),
-                    ("sub", "-"),
-                    ("int", "2"),
-                    ("pow", "**"),
-                    ("int", "5"),
-                    ("div", "/"),
-                    ("int", "2"),
+                    (("int", "4"), 0),
+                    (("sub", "-"), 2),
+                    (("int", "2"), 4),
+                    (("pow", "**"), 6),
+                    (("int", "5"), 9),
+                    (("div", "/"), 11),
+                    (("int", "2"), 13),
                 ]),
             ),
             (
                 "10 % 3",
-                make_output(vec![("int", "10"), ("mod", "%"), ("int", "3")]),
+                make_output(vec![
+                    (("int", "10"), 0),
+                    (("mod", "%"), 3),
+                    (("int", "3"), 5),
+                ]),
             ),
         ];
 
@@ -581,8 +589,8 @@ mod tests {
         assert_eq!(
             lines,
             vec![
-                make_output(vec![("word", "a"), ("word", "b")]),
-                make_output(vec![("word", "c"), ("word", "de")]),
+                make_output(vec![(("word", "a"), 0), (("word", "b"), 2)]),
+                make_output(vec![(("word", "c"), 0), (("word", "de"), 2)]),
             ]
         );
     }
@@ -602,7 +610,10 @@ mod tests {
         };
         assert_eq!(
             lines,
-            vec![make_output(vec![a, b]), make_output(vec![b, a])]
+            vec![
+                make_output(vec![(a, 0), (b, 2)]),
+                make_output(vec![(b, 0), (a, 2)])
+            ]
         );
     }
 
@@ -615,20 +626,32 @@ mod tests {
         let Ok(tokens) = tok.tokenize("ababaababc").collect::<Result<Vec<_>, _>>() else {
             panic!("tokenization failed");
         };
-        assert_eq!(tokens, make_output(vec![y, z, y, z, y, y, z, x]));
+        assert_eq!(
+            tokens,
+            make_output(vec![
+                (y, 0),
+                (z, 1),
+                (y, 2),
+                (z, 3),
+                (y, 4),
+                (y, 5),
+                (z, 6),
+                (x, 7)
+            ])
+        );
     }
 
     #[test]
     fn fast_tokenization_with_ignoreset() {
-        let literals = [("foo", "x"), ("bar", "y")];
+        let (foo, bar) = (("foo", "x"), ("bar", "y"));
         let tok = Tokenizer::default()
-            .with_literals(&literals.into())
+            .with_literals(&[foo, bar].into())
             .unwrap()
             .with_ignored_characters(['z'].into());
         let Ok(tokens) = tok.tokenize("xzy").collect::<Result<Vec<_>, _>>() else {
             panic!("tokenization failed");
         };
-        assert_eq!(tokens, make_output(literals.into()));
+        assert_eq!(tokens, make_output(vec![(foo, 0), (bar, 2)]));
     }
 
     #[test]
@@ -646,7 +669,16 @@ mod tests {
         };
         assert_eq!(
             tokens,
-            make_output(vec![foo, bar, foo, bar, bar, foo, bar, foo])
+            make_output(vec![
+                (foo, 1),
+                (bar, 3),
+                (foo, 5),
+                (bar, 7),
+                (bar, 11),
+                (foo, 14),
+                (bar, 16),
+                (foo, 20)
+            ])
         );
     }
 
@@ -663,7 +695,16 @@ mod tests {
         };
         assert_eq!(
             tokens,
-            make_output(vec![space, cr, ln, space, cr, space, ln, space])
+            make_output(vec![
+                (space, 0),
+                (cr, 1),
+                (ln, 2),
+                (space, 3),
+                (cr, 4),
+                (space, 5),
+                (ln, 6),
+                (space, 7)
+            ])
         );
 
         let Ok(lines) = tok
@@ -675,9 +716,9 @@ mod tests {
         assert_eq!(
             lines,
             vec![
-                make_output(vec![space, cr]),
-                make_output(vec![space, cr, space]),
-                vec![Token::from(space)],
+                make_output(vec![(space, 0), (cr, 1)]),
+                make_output(vec![(space, 0), (cr, 1), (space, 2)]),
+                make_output(vec![(space, 0)]),
             ]
         );
     }

@@ -19,6 +19,7 @@ pub(crate) struct Core<'a> {
     remaining_source: &'a str,
     chars: std::str::CharIndices<'a>,
     ignored: HashSet<char>,
+    position: usize,
 }
 
 impl<'a> Core<'a> {
@@ -29,6 +30,7 @@ impl<'a> Core<'a> {
             remaining_source: source,
             chars: source.char_indices(),
             ignored,
+            position: 0,
         }
     }
 
@@ -132,7 +134,12 @@ impl Iterator for Core<'_> {
         if let Ok((name, value, size)) = handling_result {
             self.remaining_source = &self.remaining_source[size..];
             self.chars = self.remaining_source.char_indices();
-            return Some(Ok(Token { name, value }));
+            self.position += index + size;
+            return Some(Ok(Token {
+                name,
+                value,
+                position: self.position - size,
+            }));
         }
 
         for (name, pattern) in &self.tokenizer.patterns {
@@ -141,9 +148,12 @@ impl Iterator for Core<'_> {
             };
             self.remaining_source = &self.remaining_source[tok.end()..];
             self.chars = self.remaining_source.char_indices();
+            let size = tok.end() - tok.start();
+            self.position += index + size;
             return Some(Ok(Token {
                 name: name.clone(),
                 value: tok.as_str().to_string(),
+                position: self.position - size,
             }));
         }
 
@@ -153,17 +163,21 @@ impl Iterator for Core<'_> {
 
 pub(crate) struct Fast<'a, I> {
     literal_map: HashMap<char, &'a str>,
+    ignored: HashSet<char>,
     chars: I,
+    position: usize,
 }
 
 impl<'a, I> Fast<'a, I>
 where
     I: Iterator<Item = char>,
 {
-    pub fn new(tok: &'a Tokenizer<'a>, chars: I) -> Self {
+    pub fn new(tok: &'a Tokenizer<'a>, chars: I, ignored: HashSet<char>) -> Self {
         Self {
             chars,
+            ignored,
             literal_map: prepare_literal_map(tok),
+            position: 0,
         }
     }
 }
@@ -175,11 +189,15 @@ where
     type Item = Result<Token, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let char = self.chars.next()?;
+        let char = self.chars.find(|c| {
+            self.position += 1;
+            !self.ignored.contains(c)
+        })?;
         match self.literal_map.get(&char) {
             Some(&name) => Some(Ok(Token {
                 name: name.to_string(),
                 value: char.to_string(),
+                position: self.position - 1,
             })),
             None => Some(Err(Error::BadToken(char))),
         }
