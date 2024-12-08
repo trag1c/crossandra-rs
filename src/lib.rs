@@ -742,4 +742,55 @@ mod tests {
         };
         assert_eq!(bad_token, 'z');
     }
+
+    #[test]
+    fn fast_tokenization_continues_after_bad_token() {
+        let (a, b) = (("a", "a"), ("b", "b"));
+        let tok = Tokenizer::default().with_literals(&[a, b].into()).unwrap();
+        let mut expected_tokens =
+            make_output(vec![(a, 0), (b, 3), (b, 4), (a, 5), (a, 7)]).into_iter();
+        let expected_error_indexes = HashSet::from([1, 2, 6]);
+
+        let tokens: Vec<_> = tok.tokenize("axxbbaxa").collect();
+        assert_eq!(tokens.len(), 8);
+
+        for (i, result) in tokens.iter().enumerate() {
+            if expected_error_indexes.contains(&i) {
+                assert!(matches!(result, Err(Error::BadToken('x'))));
+            } else {
+                assert_eq!(result.as_ref().unwrap(), &expected_tokens.next().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn core_tokenization_continues_after_bad_token() {
+        let tok = Tokenizer::default()
+            .with_literals(&[("a", "axe")].into())
+            .unwrap()
+            .with_patterns([("b".into(), "box".into())].into())
+            .unwrap();
+        let expected_tokens = [
+            ("a", "axe", 0),
+            ("b", "box", 4),
+            ("a", "axe", 8),
+            ("a", "axe", 12),
+            ("b", "box", 16),
+            ("b", "box", 20),
+        ];
+        let expected_errors = ['&', ',', ',', '.', '.'];
+
+        let tokens: Vec<_> = tok.tokenize("axe&box,axe,axe.box.box").collect();
+        assert_eq!(tokens.len(), 11);
+
+        for i in (0..tokens.len()).step_by(2) {
+            assert_eq!(
+                tokens[i].as_ref().unwrap(),
+                &Token::from(expected_tokens[i / 2])
+            );
+        }
+        for i in (1..tokens.len()).step_by(2) {
+            assert!(matches!(tokens[i], Err(Error::BadToken(c)) if c == expected_errors[i / 2]));
+        }
+    }
 }
