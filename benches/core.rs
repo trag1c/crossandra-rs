@@ -101,6 +101,7 @@ pub fn samarium(c: &mut Criterion) {
         .unwrap()
         .with_ignore_whitespace(true);
 
+    // one module from the samarium std
     let datetime = include_str!("assets/samarium/datetime.sm");
 
     c.bench_function("samarium datetime.sm", |b| {
@@ -112,11 +113,12 @@ pub fn samarium(c: &mut Criterion) {
         })
     });
 
-    let mut long_group = c.benchmark_group("samarium long");
+    // whole samarium std concatenated to one file
+    let mut long_group = c.benchmark_group("samarium std");
     long_group.sample_size(10);
-    let long = include_str!("assets/samarium/long.sm");
+    let long = include_str!("assets/samarium/std.sm");
 
-    long_group.bench_function("samarium long.sm", |b| {
+    long_group.bench_function("samarium std.sm", |b| {
         b.iter(|| black_box(tok.tokenize(black_box(long)).collect::<Result<Vec<_>, _>>()))
     });
 }
