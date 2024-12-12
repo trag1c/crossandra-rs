@@ -1,6 +1,5 @@
-use std::collections::HashSet;
-
 use fancy_regex::Regex;
+use rustc_hash::FxHashSet;
 
 use crate::error::Error;
 
@@ -22,7 +21,7 @@ fn compile(patterns: Vec<(String, String)>) -> Result<Vec<(String, Regex)>, Erro
 fn force_start_anchor(pattern: &str) -> String {
     let mut prev_char: Option<char> = None;
 
-    let anchor_indices: HashSet<usize> = pattern
+    let anchor_indices: FxHashSet<usize> = pattern
         .char_indices()
         .filter(|(_, c)| {
             let prev = prev_char.unwrap_or('\0');

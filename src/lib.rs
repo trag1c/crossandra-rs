@@ -4,10 +4,11 @@
 //! ## [Brainfuck](https://en.wikipedia.org/wiki/Brainfuck)
 //! ```rust
 //! use crossandra::Tokenizer;
+//! use rustc_hash::FxHashMap;
 //!
 //! # fn main() {
 //! let bf_tok = Tokenizer::default()
-//!     .with_literals(&[
+//!     .with_literals(&FxHashMap::from_iter([
 //!         ("add", "+"),
 //!         ("sub", "-"),
 //!         ("left", "<"),
@@ -16,7 +17,7 @@
 //!         ("write", "."),
 //!         ("begin_loop", "["),
 //!         ("end_loop", "]"),
-//!     ].into())
+//!     ]))
 //!     .expect("all literals should be ≥1 characters long");
 //!
 //! for token in bf_tok.tokenize("cat program: ,[.,]").filter_map(Result::ok) {
@@ -24,7 +25,7 @@
 //! }
 //! # }
 //! ```
-use std::collections::{HashMap, HashSet};
+pub use rustc_hash::{FxHashMap, FxHashSet};
 
 use fancy_regex::Regex;
 use rayon::prelude::*;
@@ -50,12 +51,12 @@ const WHITESPACE: [char; 6] = [' ', '\x0c', '\t', '\x0b', '\r', '\n'];
 ///
 /// ## Literals
 /// Literals indicate values that have to be exactly matched by the tokenizer. They are represented
-/// by a [`HashMap`], mapping the literal's name to its value. For instance, a literal map for
+/// by a [`FxHashMap`], mapping the literal's name to its value. For instance, a literal map for
 /// Brainfuck would be defined like this:
 /// ```rust
-/// # use std::collections::HashMap;
+/// # use rustc_hash::FxHashMap;
 /// # use crossandra::Tokenizer;
-/// let literals = HashMap::from([
+/// let literals = FxHashMap::from_iter([
 ///     ("add", "+"),
 ///     ("sub", "-"),
 ///     ("left", "<"),
@@ -116,10 +117,10 @@ const WHITESPACE: [char; 6] = [' ', '\x0c', '\t', '\x0b', '\r', '\n'];
 /// Do note that this is a rather extreme case; for a 1KB file, the speedup is ~2.3x.
 #[derive(Debug, Clone)]
 pub struct Tokenizer<'a> {
-    literals: HashMap<&'a str, &'a str>,
+    literals: FxHashMap<&'a str, &'a str>,
     patterns: Vec<(String, Regex)>,
     ignore_whitespace: bool,
-    ignored_characters: HashSet<char>,
+    ignored_characters: FxHashSet<char>,
     tree: Tree,
 }
 
@@ -149,9 +150,9 @@ impl<'a> Tokenizer<'a> {
     /// * there are duplicate [patterns](Tokenizer#patterns), or
     /// * any [pattern](Tokenizer#patterns) regex is invalid.
     pub fn new(
-        literals: &HashMap<&'a str, &'a str>,
+        literals: &FxHashMap<&'a str, &'a str>,
         patterns: Vec<(String, String)>,
-        ignored_characters: HashSet<char>,
+        ignored_characters: FxHashSet<char>,
         ignore_whitespace: bool,
     ) -> Result<Self, Error> {
         validate_literals(literals)?;
@@ -169,7 +170,7 @@ impl<'a> Tokenizer<'a> {
         self.patterns.is_empty() && self.literals.keys().all(|v| v.len() == 1)
     }
 
-    fn prepare_ignored(&self) -> HashSet<char> {
+    fn prepare_ignored(&self) -> FxHashSet<char> {
         let ignored = self.ignored_characters.iter().copied();
         if self.ignore_whitespace {
             ignored.chain(WHITESPACE).collect()
@@ -212,7 +213,7 @@ impl<'a> Tokenizer<'a> {
     ///
     /// # Errors
     /// This function will return an error if any literal is empty.
-    pub fn with_literals(mut self, literals: &HashMap<&'a str, &'a str>) -> Result<Self, Error> {
+    pub fn with_literals(mut self, literals: &FxHashMap<&'a str, &'a str>) -> Result<Self, Error> {
         self.set_literals(literals)?;
         Ok(self)
     }
@@ -232,7 +233,7 @@ impl<'a> Tokenizer<'a> {
     /// Sets the [ignored characters](Tokenizer#ignored_characters) of this [`Tokenizer`] and
     /// returns itself.
     #[must_use]
-    pub fn with_ignored_characters(mut self, ignored_characters: HashSet<char>) -> Self {
+    pub fn with_ignored_characters(mut self, ignored_characters: FxHashSet<char>) -> Self {
         self.ignored_characters = ignored_characters;
         self
     }
@@ -250,7 +251,7 @@ impl<'a> Tokenizer<'a> {
     /// # Errors
     ///
     /// This function will return an error if any literal is empty.
-    pub fn set_literals(&mut self, literals: &HashMap<&'a str, &'a str>) -> Result<(), Error> {
+    pub fn set_literals(&mut self, literals: &FxHashMap<&'a str, &'a str>) -> Result<(), Error> {
         validate_literals(literals)?;
         self.literals = stream::flip_hashmap(literals);
         self.tree = generate_tree(&self.literals);
@@ -270,7 +271,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     /// Sets the [ignored characters](Tokenizer#ignored_characters) of this [`Tokenizer`].
-    pub fn set_ignored_characters(&mut self, ignored_characters: HashSet<char>) {
+    pub fn set_ignored_characters(&mut self, ignored_characters: FxHashSet<char>) {
         self.ignored_characters = ignored_characters;
     }
 
@@ -282,12 +283,17 @@ impl<'a> Tokenizer<'a> {
 
 impl Default for Tokenizer<'_> {
     fn default() -> Self {
-        Self::new(&HashMap::new(), Vec::new(), HashSet::new(), false)
-            .expect("an empty tokenizer should be correct")
+        Self::new(
+            &FxHashMap::default(),
+            Vec::new(),
+            FxHashSet::default(),
+            false,
+        )
+        .expect("an empty tokenizer should be correct")
     }
 }
 
-fn validate_literals<'a>(literals: &HashMap<&'a str, &'a str>) -> Result<(), Error> {
+fn validate_literals<'a>(literals: &FxHashMap<&'a str, &'a str>) -> Result<(), Error> {
     literals
         .values()
         .all(|literal| !literal.is_empty())
@@ -302,25 +308,33 @@ mod tests {
     #[test]
     fn literal_validation_err() {
         assert!(matches!(
-            validate_literals(&HashMap::from([("x", "x"), ("y", "")])),
+            validate_literals(&FxHashMap::from_iter([("x", "x"), ("y", "")])),
             Err(Error::EmptyLiteral)
         ));
     }
 
     #[test]
     fn literal_validation_ok() {
-        assert!(validate_literals(&HashMap::from([("x", "x"), ("", "y")])).is_ok());
+        assert!(validate_literals(&FxHashMap::from_iter([("x", "x"), ("", "y")])).is_ok());
     }
 
     #[test]
     fn fast_mode() {
         let tests = [
-            (HashMap::new(), Vec::new(), true),
-            (HashMap::new(), vec![(String::new(), String::new())], false),
-            (HashMap::from([("", "a")]), Vec::new(), true),
-            (HashMap::from([("", "a"), ("", "b")]), Vec::new(), true),
+            (FxHashMap::default(), Vec::new(), true),
             (
-                HashMap::from([("", "a"), ("", "b"), ("", "c!")]),
+                FxHashMap::default(),
+                vec![(String::new(), String::new())],
+                false,
+            ),
+            (FxHashMap::from_iter([("", "a")]), Vec::new(), true),
+            (
+                FxHashMap::from_iter([("", "a"), ("", "b")]),
+                Vec::new(),
+                true,
+            ),
+            (
+                FxHashMap::from_iter([("", "a"), ("", "b"), ("", "c!")]),
                 Vec::new(),
                 false,
             ),
@@ -341,10 +355,14 @@ mod tests {
     #[test]
     fn ignored_preparation() {
         let tests = [
-            ([].into(), false, HashSet::new()),
-            (['a', 'b', 'c'].into(), false, "abc".chars().collect()),
+            (FxHashSet::default(), false, FxHashSet::default()),
             (
-                ['a', 'b', 'c'].into(),
+                FxHashSet::from_iter(['a', 'b', 'c']),
+                false,
+                "abc".chars().collect(),
+            ),
+            (
+                FxHashSet::from_iter(['a', 'b', 'c']),
                 true,
                 "abc \x0c\t\x0b\r\n".chars().collect(),
             ),
@@ -364,22 +382,27 @@ mod tests {
     fn comparison() {
         let def = Tokenizer::default();
         assert_eq!(def, Tokenizer::default());
-        assert_eq!(def, Tokenizer::default().with_ignored_characters([].into()));
+        assert_eq!(
+            def,
+            Tokenizer::default().with_ignored_characters(FxHashSet::default())
+        );
         assert_ne!(
             def,
-            Tokenizer::default().with_ignored_characters(['x'].into())
+            Tokenizer::default().with_ignored_characters(FxHashSet::from_iter(['x']))
         );
         assert_ne!(def, Tokenizer::default().with_ignore_whitespace(true));
         assert_ne!(
             def,
             Tokenizer::default()
-                .with_literals(&[("1", "2")].into())
+                .with_literals(&FxHashMap::from_iter([("1", "2")]))
                 .unwrap()
         );
         assert_eq!(
-            def.clone().with_literals(&[("1", "2")].into()).unwrap(),
+            def.clone()
+                .with_literals(&FxHashMap::from_iter([("1", "2")]))
+                .unwrap(),
             Tokenizer::default()
-                .with_literals(&[("1", "2")].into())
+                .with_literals(&FxHashMap::from_iter([("1", "2")]))
                 .unwrap()
         );
         assert_ne!(
@@ -392,9 +415,9 @@ mod tests {
 
     #[test]
     fn builder_equivalence() {
-        let literals = HashMap::from([("a", "b")]);
+        let literals = FxHashMap::from_iter([("a", "b")]);
         let patterns = vec![(String::from("a"), String::from("b"))];
-        let ignored_chars: HashSet<_> = ['x'].into();
+        let ignored_chars: FxHashSet<_> = FxHashSet::from_iter(['x']);
 
         let mut tok1 = Tokenizer::default();
         tok1.set_ignore_whitespace(true);
@@ -420,17 +443,19 @@ mod tests {
     #[test]
     fn builder_processing_literals() {
         let mut tok = Tokenizer::default();
-        assert_eq!(tok.tree, Tree::Node(HashMap::new()));
+        assert_eq!(tok.tree, Tree::Node(FxHashMap::default()));
 
-        let literals = HashMap::from([("a", "b")]);
+        let literals = FxHashMap::from_iter([("a", "b")]);
         assert!(tok.set_literals(&literals).is_ok());
 
-        let flipped_literals = HashMap::from([("b", "a")]);
+        let flipped_literals = FxHashMap::from_iter([("b", "a")]);
         let expected_tree = generate_tree(&flipped_literals);
         assert_eq!(tok.literals, flipped_literals);
         assert_eq!(tok.tree, expected_tree);
 
-        assert!(tok.set_literals(&HashMap::from([("a", "")])).is_err());
+        assert!(tok
+            .set_literals(&FxHashMap::from_iter([("a", "")]))
+            .is_err());
     }
 
     #[test]
@@ -461,7 +486,7 @@ mod tests {
     #[test]
     fn brainfuck_fast_tokenizer() {
         let tok = Tokenizer::default()
-            .with_literals(&HashMap::from_iter([
+            .with_literals(&FxHashMap::from_iter([
                 ("add", "+"),
                 ("sub", "-"),
                 ("left", "<"),
@@ -549,17 +574,14 @@ mod tests {
         ];
 
         let tok = Tokenizer::default()
-            .with_literals(
-                &[
-                    ("add", "+"),
-                    ("sub", "-"),
-                    ("mul", "*"),
-                    ("div", "/"),
-                    ("pow", "**"),
-                    ("mod", "%"),
-                ]
-                .into(),
-            )
+            .with_literals(&FxHashMap::from_iter([
+                ("add", "+"),
+                ("sub", "-"),
+                ("mul", "*"),
+                ("div", "/"),
+                ("pow", "**"),
+                ("mod", "%"),
+            ]))
             .unwrap()
             .with_patterns(vec![common::INT.clone()])
             .unwrap();
@@ -600,7 +622,7 @@ mod tests {
         let (a, b) = (("a", "a"), ("b", "b"));
         let tok = Tokenizer::default()
             .with_ignore_whitespace(true)
-            .with_literals(&[a, b].into())
+            .with_literals(&FxHashMap::from_iter([a, b]))
             .unwrap();
         let Ok(lines) = tok
             .tokenize_lines("a b\nb\ra")
@@ -621,7 +643,7 @@ mod tests {
     fn breakpoint_tokenization() {
         let (x, y, z) = (("x", "abc"), ("y", "a"), ("z", "b"));
         let tok = Tokenizer::default()
-            .with_literals(&[x, y, z].into())
+            .with_literals(&FxHashMap::from_iter([x, y, z]))
             .unwrap();
         let Ok(tokens) = tok.tokenize("ababaababc").collect::<Result<Vec<_>, _>>() else {
             panic!("tokenization failed");
@@ -645,9 +667,9 @@ mod tests {
     fn fast_tokenization_with_ignoreset() {
         let (foo, bar) = (("foo", "x"), ("bar", "y"));
         let tok = Tokenizer::default()
-            .with_literals(&[foo, bar].into())
+            .with_literals(&FxHashMap::from_iter([foo, bar]))
             .unwrap()
-            .with_ignored_characters(['z'].into());
+            .with_ignored_characters(FxHashSet::from_iter(['z']));
         let Ok(tokens) = tok.tokenize("xzy").collect::<Result<Vec<_>, _>>() else {
             panic!("tokenization failed");
         };
@@ -658,9 +680,9 @@ mod tests {
     fn core_tokenization_with_ignoreset() {
         let (foo, bar) = (("foo", "xz"), ("bar", "yz"));
         let tok = Tokenizer::default()
-            .with_literals(&[foo, bar].into())
+            .with_literals(&FxHashMap::from_iter([foo, bar]))
             .unwrap()
-            .with_ignored_characters(['z'].into());
+            .with_ignored_characters(FxHashSet::from_iter(['z']));
         let Ok(tokens) = tok
             .tokenize("zxzyzxzyzzzyzzxzyzzzxzz")
             .collect::<Result<Vec<_>, _>>()
@@ -686,7 +708,7 @@ mod tests {
     fn whitespace_tokenization() {
         let (cr, ln, space) = (("cr", "\r"), ("ln", "\n"), ("space", " "));
         let tok = Tokenizer::default()
-            .with_literals(&[cr, ln, space].into())
+            .with_literals(&FxHashMap::from_iter([cr, ln, space]))
             .unwrap();
         let source = " \r\n \r \n ";
 
@@ -736,7 +758,7 @@ mod tests {
     #[test]
     fn bad_tokenization_core() {
         let tok = Tokenizer::default()
-            .with_literals(&[("xy", "xy")].into())
+            .with_literals(&FxHashMap::from_iter([("xy", "xy")]))
             .unwrap();
         let Some(Err(Error::BadToken(err_value, err_position))) =
             tok.tokenize("xyz").find(Result::is_err)
@@ -750,7 +772,9 @@ mod tests {
     #[test]
     fn fast_tokenization_continues_after_bad_token() {
         let (a, b) = (("a", "a"), ("b", "b"));
-        let tok = Tokenizer::default().with_literals(&[a, b].into()).unwrap();
+        let tok = Tokenizer::default()
+            .with_literals(&FxHashMap::from_iter([a, b]))
+            .unwrap();
         let mut expected_tokens =
             make_output(vec![(a, 0), (b, 3), (b, 4), (a, 5), (a, 7)]).into_iter();
         let mut expected_error_indexes = [1, 2, 6].into_iter();
@@ -772,7 +796,7 @@ mod tests {
     #[test]
     fn core_tokenization_continues_after_bad_token() {
         let tok = Tokenizer::default()
-            .with_literals(&[("a", "axe")].into())
+            .with_literals(&FxHashMap::from_iter([("a", "axe")]))
             .unwrap()
             .with_patterns([("b".into(), "box".into())].into())
             .unwrap();
