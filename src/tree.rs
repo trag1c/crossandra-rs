@@ -1,16 +1,16 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Tree {
     Leaf(String),
-    Node(HashMap<Option<char>, Tree>),
+    Node(FxHashMap<Option<char>, Tree>),
 }
 
-pub(crate) fn generate_tree(literals: &HashMap<&str, &str>) -> Tree {
+pub(crate) fn generate_tree(literals: &FxHashMap<&str, &str>) -> Tree {
     let mut sorted_items: Vec<_> = literals.iter().collect();
     sorted_items.sort_by_key(|(k, _)| std::cmp::Reverse(k.len()));
 
-    let mut root = Tree::Node(HashMap::new());
+    let mut root = Tree::Node(FxHashMap::default());
 
     for (k, &v) in sorted_items {
         let mut current = &mut root;
@@ -25,7 +25,9 @@ pub(crate) fn generate_tree(literals: &HashMap<&str, &str>) -> Tree {
             // if there is a character after the current character
             if chars.peek().is_some() {
                 // move down the tree
-                current = map.entry(Some(c)).or_insert(Tree::Node(HashMap::new()));
+                current = map
+                    .entry(Some(c))
+                    .or_insert(Tree::Node(FxHashMap::default()));
             } else {
                 // else we reached the end and insert the value at the current position
                 map.entry(Some(c))
@@ -48,7 +50,7 @@ pub(crate) fn generate_tree(literals: &HashMap<&str, &str>) -> Tree {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use rustc_hash::FxHashMap;
 
     use super::{
         generate_tree,
@@ -57,14 +59,14 @@ mod tests {
 
     macro_rules! hashmap {
         { $( $key:expr => $value:expr ),* $(,)? } => {{
-            HashMap::from([$( ($key, $value), )*])
+            FxHashMap::from_iter([$( ($key, $value), )*])
         }};
     }
 
     #[test]
     fn empty_tree() {
         let tree = generate_tree(&hashmap! {});
-        assert!(matches!(tree, Node(HashMap { .. })));
+        assert!(matches!(tree, Node(FxHashMap { .. })));
     }
 
     #[test]

@@ -1,12 +1,12 @@
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{error::Error, tree::Tree, Token, Tokenizer};
 
-pub(crate) fn flip_hashmap<'a>(hm: &HashMap<&'a str, &'a str>) -> HashMap<&'a str, &'a str> {
+pub(crate) fn flip_hashmap<'a>(hm: &FxHashMap<&'a str, &'a str>) -> FxHashMap<&'a str, &'a str> {
     hm.iter().map(|(&k, &v)| (v, k)).collect()
 }
 
-fn prepare_literal_map<'a>(tok: &'a Tokenizer) -> HashMap<char, &'a str> {
+fn prepare_literal_map<'a>(tok: &'a Tokenizer) -> FxHashMap<char, &'a str> {
     tok.literals
         .iter()
         .map(|(&k, &v)| (k.chars().next().expect("all literals should be 1-long"), v))
@@ -18,12 +18,12 @@ pub(crate) struct Core<'a> {
     chunk_size: usize,
     remaining_source: &'a str,
     chars: std::str::CharIndices<'a>,
-    ignored: HashSet<char>,
+    ignored: FxHashSet<char>,
     position: usize,
 }
 
 impl<'a> Core<'a> {
-    pub fn new(tok: &'a Tokenizer<'a>, source: &'a str, ignored: HashSet<char>) -> Self {
+    pub fn new(tok: &'a Tokenizer<'a>, source: &'a str, ignored: FxHashSet<char>) -> Self {
         Self {
             tokenizer: tok,
             chunk_size: tok.literals.keys().map(|x| x.len()).max().unwrap_or(1),
@@ -165,8 +165,8 @@ impl Iterator for Core<'_> {
 }
 
 pub(crate) struct Fast<'a, I> {
-    literal_map: HashMap<char, &'a str>,
-    ignored: HashSet<char>,
+    literal_map: FxHashMap<char, &'a str>,
+    ignored: FxHashSet<char>,
     chars: I,
     position: usize,
 }
@@ -175,7 +175,7 @@ impl<'a, I> Fast<'a, I>
 where
     I: Iterator<Item = char>,
 {
-    pub fn new(tok: &'a Tokenizer<'a>, chars: I, ignored: HashSet<char>) -> Self {
+    pub fn new(tok: &'a Tokenizer<'a>, chars: I, ignored: FxHashSet<char>) -> Self {
         Self {
             chars,
             ignored,
@@ -213,10 +213,10 @@ mod tests {
 
     #[test]
     fn flip_hashmap_ok() {
-        assert_eq!(flip_hashmap(&HashMap::new()), HashMap::new());
+        assert_eq!(flip_hashmap(&FxHashMap::default()), FxHashMap::default());
         assert_eq!(
-            flip_hashmap(&HashMap::from([("a", "b"), ("c", "d")])),
-            HashMap::from([("b", "a"), ("d", "c")])
+            flip_hashmap(&FxHashMap::from_iter([("a", "b"), ("c", "d")])),
+            FxHashMap::from_iter([("b", "a"), ("d", "c")])
         );
     }
 
@@ -225,10 +225,10 @@ mod tests {
         assert_eq!(
             prepare_literal_map(
                 &Tokenizer::default()
-                    .with_literals(&HashMap::from([("x", "a"), ("y", "b")]))
+                    .with_literals(&FxHashMap::from_iter([("x", "a"), ("y", "b")]))
                     .unwrap()
             ),
-            HashMap::from([('a', "x"), ('b', "y")])
+            FxHashMap::from_iter([('a', "x"), ('b', "y")])
         );
     }
 }
