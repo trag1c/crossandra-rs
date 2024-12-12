@@ -1,0 +1,1518 @@
+<=operator;
+
+@ ArithmeticArray {
+    => array * {
+        'array: array;
+    }
+
+    apply op other * {
+        * ArithmeticArray([op(i, other) ... i ->? 'array]);
+    }
+
+    & other * { * 'apply(operator.and, other); }
+    + other * { * 'apply(operator.add, other); }
+    -- other * { * 'apply(operator.div, other); }
+    :: other * { * 'apply(operator.eq, other); }
+    >: other * { * 'apply(operator.ge, other); }
+    > other * { * 'apply(operator.gt, other); }
+    <: other * { * 'apply(operator.le, other); }
+    < other * { * 'apply(operator.lt, other); }
+    --- other * { * 'apply(operator.mod, other); }
+    ++ other * { * 'apply(operator.mul, other); }
+    ::: other * { * 'apply(operator.ne, other); }
+    | other * { * 'apply(operator.or, other); }
+    +++ other * { * 'apply(operator.pow, other); }
+    - other * { * 'apply(operator.sub, other); }
+    ^ other * { * 'apply(operator.xor, other); }
+
+    <<>> item * {
+        out: 'array<<item>>;
+        ? out?! :: <-types.Array {
+            * ArithmeticArray(out);
+        }
+        * out;
+    }
+
+    <<>>: item value * { 'array<<item>>: value; }
+
+    $ * { * 'array$; }
+    ? * { * / ? 'array ,, \; }
+    ! * { * "A" + ""?!('array); }
+}
+
+@ Deque {
+
+    => size? * {
+        size <> -/;
+        'deque: [];
+        'size: size;
+    }
+
+    $ * { * 'deque$; }
+    is_empty * { * ~~ '$; }
+    is_full * { * '$ :: 'size; }
+
+    throw_empty * {
+        ? 'is_empty() {
+            "deque is empty"!!!;
+        }
+    }
+
+    throw_full * {
+        ? 'is_full() {
+            "deque is full (size " + ""?!('size) + ")"!!!;
+        }
+    }
+
+    put_front item * {
+        'throw_full(); 'deque: [item] + 'deque;
+    }
+
+    put item * { 'throw_full(); 'deque+: [item]; }
+
+    put_front_all items * {
+        ... item ->? items {
+            'put_front(item);
+        }
+    }
+
+    put_all items * {
+        ... item ->? items {
+            'put(item);
+        }
+    }
+
+    front * { * 'deque<<\>>; }
+    back * { * 'deque<<-/>>; }
+    ? * { * '$ > \; }
+
+    get_front * {
+        'throw_empty();
+        out: 'deque<<\>>;
+        'deque-: \;
+        * out;
+    }
+
+    get * {
+        'throw_empty();
+        out: 'deque<<-/>>;
+        'deque-: 'deque$-;
+        * out;
+    }
+
+    ! * {
+        <=string.wrap;
+        <=types.String;
+        ? '$ <: /\/ {
+            items: ""?!('deque)<</..-/>>;
+        } ,, {
+            front: ""?!('front());
+            back: ""?!('back());
+            ? 'front()?! :: String {
+                front: wrap(front, "\"");
+            }
+            ? 'back()?! :: String {
+                back: wrap(back, "\"");
+            }
+            items: ""?!(front) + ", ..., " + ""?!(back);
+        }
+        * "Deque(" + items + ")";
+    }
+}
+
+@ Queue {
+    => size? * {
+        size <> -/;
+        'queue: [];
+        'size: size;
+    }
+
+    $ * { * 'queue$; }
+    ->? element * { * element ->? 'queue; }
+    is_empty * { * ~~ '$; }
+    is_full * { * '$ :: 'size; }
+
+    throw_empty * {
+        ? 'is_empty() {
+            "queue is empty"!!!;
+        }
+    }
+
+    put item * {
+        ? 'is_full() {
+            "queue is full (size " + ""?!('size) + ")"!!!;
+        }
+        'queue+: [item];
+    }
+
+    put_all items * {
+        ... item ->? items {
+            'put(item);
+        }
+    }
+
+    get * {
+        'throw_empty();
+        out: 'queue<<\>>;
+        'queue-: \;
+        * out;
+    }
+
+    first * { 'throw_empty(); * 'queue<<\>>; }
+    last * { 'throw_empty(); * 'queue<<-/>>; }
+    ? * { * '$>; }
+
+    ! * {
+        <=string.wrap;
+        <=types.String;
+        ? '$ <: /\/ {
+            items: ""?!('queue)<</..-/>>;
+        } ,, {
+            first: ""?!('first());
+            last: ""?!('last());
+            ? 'first()?! :: String {
+                first: wrap(first, "\"");
+            }
+            ? 'last()?! :: String {
+                last: wrap(last, "\"");
+            }
+            items: ""?!(first) + ", ..., " + ""?!(last);
+        }
+        * "Queue(" + items + ")";
+    }
+}
+
+@ Set {
+    => items? capacity? * {
+        items <> [];
+        'items: -items;
+    }
+
+    $ * { * 'items$; }
+
+    add value * {
+        x: value ~~ ->? ';
+        'items|: [value];
+        * x;
+    }
+
+    ? * { * ~~ 'is_empty(); }
+
+    ! * {
+        * "Set(" + ""?!('items)<</..-/>> + ")";
+    }
+
+    remove value * { 'items-: [value]; }
+
+    ->? value * {
+        * <-iter.find('items, value)>:;
+    }
+
+    #check_type value * {
+        ? value?! ::: Set {
+            "expected Set, received " + ""?!(value?!)!!!;
+        }
+    }
+
+    clear * { 'items: []; }
+    is_empty * { * '$ :: \; }
+    ::: other * { * ~~ ' :: other; }
+    :: other * {
+        sort: <-iter.sorted;
+        * sort('items) :: sort(other.items);
+    }
+
+    | other * {
+        '#check_type(other);
+        * Set('items | other.items);
+    }
+
+    ^ other * {
+        '#check_type(other);
+        * Set('items ^ other.items);
+    }
+
+    & other * {
+        '#check_type(other);
+        * Set('items & other.items);
+    }
+
+    - other * {
+        '#check_type(other);
+        * Set('items -- other.items);
+    }
+
+    > other * {
+        '#check_type(other);
+
+        ? '$ <: other$ { * \; }
+
+        ... value ->? other.items {
+            ? value ~~ ->? ' { * \; }
+        }
+        * /;
+    }
+
+    >: other * { * ' :: other || ' > other; }
+}
+
+@ Stack {
+    => size? * {
+        size <> -/;
+        'stack: [];
+        'size: size;
+    }
+
+    push item * {
+        ? 'is_full() {
+            "stack is full (size " + ""?!('size) + ")"!!!;
+        }
+        'stack+: [item];
+    }
+
+    push_all items * {
+        ... element ->? items {
+            'push(element);
+        }
+    }
+
+    $ * { * 'stack$; }
+
+    pop * {
+        ? 'is_empty() {
+            "stack is empty"!!!;
+        }
+        out: 'stack<<-/>>;
+        'stack-: 'stack$-;
+        * out;
+    }
+
+    peek * {
+        ? 'is_empty() {
+            "stack is empty"!!!;
+        }
+        * 'stack<<-/>>;
+    }
+
+    ? * { * 'stack$ > \; }
+    is_full * { * 'size :: 'stack$; }
+    is_empty * { * 'stack$ :: \; }
+
+    ! * {
+        ?? {
+            top: 'peek();
+        } !! {
+            top:;
+        }
+        ? top?! :: <-types.String {
+            top: <-string.wrap(""?!(top), "\"");
+        }
+        * "Stack(capacity:" + ""?!('size)
+        + ", size:" + ""?!('stack$)
+        + ", top:" + ""?!(top)
+        + ")";
+    }
+}<=types.String;
+
+MONTHS: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+WEEKDAYS: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+days_in_month year month * {
+    ? month ->? [/, //, /\/, ///, /\\\, /\/\, //\\] {
+        * /////;
+    }
+    ? month ->? [/\, //\, /\\/, /\//] {
+        * ////\;
+    }
+    ? is_leap_year(year) {
+        * ///\/;
+    }
+    * ///\\;
+}
+
+is_leap_year year * {
+    ? year --- //\\/\\\\ {
+        * /;
+    } ,, ? year --- //\\/\\ {
+        * \;
+    } ,, ? (year --- /\\) {
+        * /;
+    } ,, {
+        * \;
+    }
+}
+
+month_name n * {
+    ? n >: MONTHS$ {
+        * "";
+    } ,, ? n< {
+        * "";
+    } ,, {
+        * MONTHS<<n+>>;
+    }
+}
+
+sleep_minutes minutes * {
+    sleep_seconds(minutes ++ ////\\);
+}
+
+sleep_seconds seconds * {
+    ,., seconds ++ /////\/\\\;
+}
+
+timestamp_utc ts? * {
+    60_000: ///\/\/\\//\\\\\;
+    3_600_000: //\//\///\///\/\\\\\\\;
+    ts <> @@;
+    dtnow: @@@;
+    tz: dtnow<<-/\..>>;
+    offset: tz<<\>> ++ 3_600_000 + tz<</>> ++ 60_000;
+    * ts - offset;
+}
+
+weekday_name n * {
+    ? n >: WEEKDAYS$ {
+        * "";
+    } ,, ? n< {
+        * "";
+    } ,, {
+        * WEEKDAYS<<n>>;
+    }
+}
+
+@ DateTime {
+    => Y? M? D? h? m? s? ms? tz? * {
+        Y <>;
+        ? :: Y {
+            'array: @@@;
+            'year: 'array<<\>>;
+            'month: 'array<</>>;
+            'day: 'array<</\>>;
+            'hour: 'array<<//>>;
+            'minute: 'array<</\\>>;
+            'second: 'array<</\/>>;
+            'millisecond: 'array<<//\>>;
+            'timezone: 'array<<///..>>;
+        } ,, {
+            M <> /; D <> /;
+            h <> \; m <> \; s <> \; ms <> \;
+            tz <> [\, \];
+            'year: Y;
+            'month: M;
+            'day: D;
+            'hour: h;
+            'minute: m;
+            'second: s;
+            'millisecond: ms;
+            'timezone: tz;
+            'array: [Y, M, D, h, m, s, ms, tz<<\>>, tz<</>>];
+        }
+        ? 'timezone ::: [\, \] {
+            'utc: DateTime(
+                'year, 'month, 'day, 'hour, 'minute, 'second, 'millisecond
+            );
+        } ,, {
+            'utc: ';
+        }
+    }
+
+    - other * {
+        diff: 'to_timestamp() - other.to_timestamp();
+        1000: /\/\ +++ //;
+        60: ////\\;
+        24: //\\\;
+        ms: diff --- 1000; diff--: 1000;
+        s: diff --- 60; diff--: 60;
+        m: diff --- 60; diff--: 60;
+        h: diff --- 24; diff--: 24;
+        == `diff` is days
+        * DTDiff([diff, h, m, s, ms]);
+    }
+
+    ! * {
+        add0s n c * { * <-string.leftpad(String(n), c, "0"); }
+        * "$Y-$M-$D $h:$m:$s.$z" --- {{
+            "Y" -> 'year,
+            "M" -> add0s('month, /\),
+            "D" -> add0s('day, /\),
+            "h" -> add0s('hour + 'timezone<<\>>, /\),
+            "m" -> add0s('minute + 'timezone<</>>, /\),
+            "s" -> add0s('second, /\),
+            "z" -> add0s('millisecond, //)
+        }};
+    }
+
+    to_timestamp * {
+        1000: /\/\ +++ //;
+        60: ////\\;
+
+        mod_array: 'array<<..-/\..>>;
+        array: <-collections.ArithmeticArray(mod_array<<....-/>>);
+        total: \;
+
+        month_days: days_in_month('year, 'month);
+        year_days: /\//\//\/ + is_leap_year('year);
+
+        ... i ->? [/, 1000, 60, 60, //\\\, month_days, year_days] {
+            array++: i;
+            total+: array<<\>>;
+            array: array<</..>>;
+        }
+
+        total-: 'timezone<<\>> ++ 1000 ++ 60 ++ 60;
+        total-: 'timezone<</>> ++ 1000 ++ 60;
+
+        * total;
+    }
+}
+
+@ DTDiff {
+    => data * {
+        'data: data;
+    }
+
+    ! * {
+        add0s n c * { * <-string.leftpad(String(n), c, "0"); }
+        D: 'data<<\>>;
+        h: 'data<</>>;
+        m: 'data<</\>>;
+        s: 'data<<//>>;
+        ms: 'data<</\\>>;
+        out: "";
+        ? D { out+: ""?!(D) + " days"; }
+        ? D && (~~ (h || m || s || ms)) { out+: ", "; }
+        ? h { out+: add0s(h, /\) + ":"; }
+        ? h || m { out+: add0s(m, /\) + ":"; }
+        ? h || m || s { out+: add0s(s, /\); }
+        ? ms { out+: "." + add0s(ms, //); }
+        * <-string.strip_left(out, "0") || "0";
+    }
+}
+<=math.to_hex;
+<=iter.[any, map];
+<=string.[join, split, strip];
+<=types.[Array, Number, Slice];
+
+
+@ Bytes {
+    => value * {
+        '#value: '#to_bytes(value);
+    }
+
+    #to_bytes v * {
+        ? v?! :: ""?! {
+            * [i% ... i ->? v];
+        }
+        ? v?! :: []?! {
+            ? any([i?! ::: /?! ... i ->? v]) {
+                "non-int found in the list"!!!;
+            }
+            * v;
+        } ,, {
+            "invalid type: " + ""?!(v?!)!!!;
+        }
+    }
+
+    + other * {
+        ? other?! :: Bytes {
+            * Bytes('#value + other.export());
+        }
+        * Bytes('#value + '#to_bytes(other));
+    }
+
+    ! * {
+        * join([to_hex(i) ... i ->? '#value], " ");
+    }
+
+    export * { * '#value; }
+
+    export_string * {
+        * join([i% ... i ->? '#value]);
+    }
+}
+
+inputcast prompt? * {
+    prompt <> "";
+    * #autocast(prompt???);
+}
+
+#autocast value * {
+    value: strip(value);
+    ? ~~ value { *; }
+    ? ".." ->? value {
+        bits: [Integer(i) ? i ,, ... i ->? split(value, "..")];
+        ? bits$ > // {
+            "too many arguments for slice"!!!;
+        }
+        * Slice(**bits);
+    }
+    ? "=" ->? value {
+        items: [split(i, "=") ... i ->? split(value, ",")];
+        * {{strip(k) -> #autocast(v) ... k, v ->? items}};
+    }
+    ... sep ->? ", " {
+        ? sep ->? value {
+            * Array(map(#autocast, split(value, sep)));
+        }
+    }
+    ?? { * Integer(value); }
+    !! { * value; }
+}
+
+read_until target? * {
+    target <> "";
+    s: "";
+    .. {
+        i: ???;
+        s+: i;
+        ? i :: target { <- }
+        s+: "\n";
+    }
+    * s;
+}accumulate array function * {
+    prev: array<<\>>;
+    ** prev;
+    ... e ->? array<</..>> {
+        prev: function(prev, e);
+        ** prev;
+    }
+}
+
+all array * {
+    ... i ->? array {
+        ? ~~ i {
+            * \;
+        }
+    }
+    * /;
+}
+
+any array * {
+    ... i ->? array {
+        ? i {
+            * /;
+        }
+    }
+    * \;
+}
+
+chunks array size * {
+    ... i ->? <<..array$..size>> {
+        ** array<<i..i + size>>;
+    }
+}
+
+count array target * {
+    ? target ~~ ->? array { * \; }
+    s: \;
+    ... e ->? array {
+        s+: e :: target;
+    }
+    * s;
+}
+
+cycle iter * {
+    saved: [e ... e ->? iter];
+    .. {
+        ... e ->? saved {
+            ** e;
+        }
+    }
+}
+
+drop_while array function * {
+    i: \;
+    ... e ->? array {
+        i+:;
+        ? ~~ function(e) {
+            ** e;
+            <-
+        }
+    }
+    ... e ->? array<<i..array$>> {
+        ** e;
+    }
+}
+
+filter function array * {
+    ? function$ :: / {
+        array: [[**e] ... e ->? array];
+    }
+    ... e ->? array {
+        ? function(**e) {
+            ** e;
+        }
+    }
+}
+
+filter_false function array * {
+    flip arg * { * ~~ function(arg); }
+    * filter(flip, array);
+}
+
+find array target * {
+    index: \;
+    ? array?! :: <-types.String {
+        .. index + target$ <: array$ {
+            ? array<<index..index+target$>> :: target {
+                * index;
+            }
+            index+:;
+        }
+    } ,, {
+        ... e ->? array {
+            ? e :: target {
+                * index;
+            }
+            index+:;
+        }
+    }
+    * -/;
+}
+
+
+find_all array target * {
+    ? array?! :: <-types.String && target$ > / {
+        ... i ->? <<..array$>> {
+            substring: array<<i..i + target$>>;
+            ? substring :: target {
+                ** i;
+            }
+        }
+    } ,, {
+        ... i, v ->? <<>> >< array {
+            ? v :: target {
+                ** i;
+            }
+        }
+    }
+}
+
+flatten array depth? * {
+    depth <>;
+    ? depth ::: && depth< {
+        "depth cannot be negative"!!!;
+    }
+    x: [i ... i ->? array];
+
+    ? depth :: \ {
+        * x;
+    }
+
+    ? depth :: {
+        old: x;
+        new: #flatten(x);
+        .. new ::: old {
+            old: [i ... i ->? new];
+            new: #flatten(old);
+        }
+        * new;
+    } ,, {
+        flattened: x;
+        ... _ ->? <<..depth>> {
+            flattened: #flatten(flattened);
+        }
+        * flattened;
+    }
+}
+
+#flatten array * {
+    flattened: [];
+    ... i ->? array {
+        ? i?! :: []?! {
+            flattened+: i;
+        } ,, {
+            flattened+: [i];
+        }
+    }
+    * flattened;
+}
+
+map function array * {
+    ? function$ :: / {
+        array: [[e] ... e ->? array];
+    }
+    ... e ->? array {
+        ** function(**e);
+    }
+}
+
+pairwise array * {
+    ... i ->? <<..array$ - />> {
+        ** array<<i..i+/\>>;
+    }
+}
+
+reduce function array * {
+    prev: array<<\>>;
+    ... e ->? array<</..>> {
+        prev: function(prev, e);
+    }
+    * prev;
+}
+
+reverse array * {
+    i: array$-;
+    .. i>: {
+        ** array<<i>>;
+        i-:;
+    }
+}
+
+sorted array key? * {
+    key <> #dummy;
+    decorated: [[key(v), v] ... v ->? array];
+    d_sorted: #quicksort(decorated);
+    * [v ... _, v ->? d_sorted];
+}
+
+#dummy x * { * x; }
+
+#quicksort array * {
+    x: [i ... i ->? array];
+    ? x$ < /\ { * x; }
+    pivot: x<<\>>;
+    less: [i ... i ->? x<</..>> ? i <: pivot];
+    greater: [i ... i ->? x<</..>> ? i > pivot];
+    * #quicksort(less) + [pivot] + #quicksort(greater);
+}
+
+take_while array function * {
+    ... e ->? array {
+        ? function(e) {
+            ** e;
+            ->
+        }
+        <-
+    }
+}
+
+zip_longest fill arrays... * {
+    longest: <-math.max([i$ ... i ->? arrays]);
+    ... i ->? <<..longest>> {
+        ... it ->? arrays {
+            ?? {
+                ** it<<i>>;
+            } !! {
+                ** fill;
+            }
+        }
+    }
+}E: /\`/\//\//////\\\\/\/\/\\\/\//\\\/\/\\\/\/\///\//\/\\/\/\/\\//\/\/\/\//////\///\\\/\/\//\\\/\\\\\\\/\\/;
+PHI: /`/\\////\\\//\///\////\\//\///\\/\///////\/\\/\/\\/////\\\\\/\/\/////\\///\\///\\//\\\\\\\//\\\\\\/\/;
+PI: //`\\/\\/\\\\//////\//\/\/\/\\\/\\\/\\\\/\//\/\\\//\\\\/\\\//\/\\//\\\/\\//\\\//\\//\\\/\/\\\/\///\\\\\;
+TAU: PI++;
+
+
+abs x * {
+    ? x < \ { * -x; }
+    * x;
+}
+
+ceil x * {
+    ? is_int(x) { * x; }
+    * x$+;
+}
+
+factorial n * {
+    ? n < \ {
+        "factorial is defined only for non-negative numbers"!!!;
+    }
+    ? ~~is_int(n) {
+        "n has to be an integer"!!!;
+    }
+    o: /;
+    .. n > \ {
+        o++: n;
+        n-: /;
+    }
+    * o;
+}
+
+floor x * {
+    * x$;
+}
+
+gcd a b * {
+    .. b { a, b: b, a --- b; }
+    * abs(a);
+}
+
+is_int x * {
+    * x :: x$;
+}
+
+lcm a b * {
+    ?? { * abs(a ++ b) -- gcd(a, b); }
+    !! { * \; }
+}
+
+max array b... * {
+    ? b { * max([array] + b); }
+    o: array<<\>>;
+    ... e ->? array {
+        ? e > o { o: e; }
+    }
+    * o;
+}
+
+min array b... * {
+    ? b { * min([array] + b); }
+    o: array<<\>>;
+    ... e ->? array {
+        ? e < o { o: e; }
+    }
+    * o;
+}
+
+product array * {
+    o: /;
+    ... e ->? array { o++: e; }
+    * o;
+}
+
+shl a b * {
+    * a ++ /\ +++ b;
+}
+
+shr a b * {
+    * a -- /\ +++ b;
+}
+
+sqrt x * {
+    ? x < \ {
+        "sqrt is defined only for non-negative numbers"!!!;
+    }
+    * x +++ `/;
+}
+
+sum array start? * {
+    start <> \;
+    o: start;
+    ... e ->? array { o+: e; }
+    * o;
+}
+
+#to_base n base base_name charset * {
+    ? ~~ is_int(n) {
+        "cannot convert a non-integer to $0" --- base_name!!!;
+    }
+    div: (n -- base)$;
+    mod: n --- base;
+    ? ~~ div { * charset<<mod>>; }
+    * #to_base(div, base, base_name, charset) + charset<<mod>>;
+}
+
+to_bin n * {
+    * #to_base(n, /\, "bin", "01");
+}
+
+to_hex n * {
+    * #to_base(n, /\\\\, "hex", <-string.HEXDIGITS);
+}
+
+to_oct n * {
+    * #to_base(n, /\\\, "oct", <-string.OCTDIGITS);
+}
+
+is_prime n * {
+    ? ~~is_int(n) { * \; }
+    ? n <: // { * n > /; }
+    ? n --- :: \ || n --- // :: \ { * \; }
+    i: /\/;
+    .. i ++ i <: n {
+        ? n --- i :: \ || n --- (i + /\) :: \ { * \; }
+        i+: //\;
+    }
+    * /;
+}
+
+#r: <-pystd.round_;
+
+round n ndigits? * {
+    ndigits <>;
+    * #r(n, ndigits);
+}add x y * {
+    * x + y;
+}
+
+and x y * {
+    * x & y;
+}
+
+cast x * {
+    * x%;
+}
+
+div x y * {
+    * x -- y;
+}
+
+eq x y * {
+    * x :: y;
+}
+
+ge x y * {
+    * x >: y;
+}
+
+gt x y * {
+    * x > y;
+}
+
+has x y * {
+    * y ->? x;
+}
+
+hash x * {
+    * x##;
+}
+
+le x y * {
+    * x <: y;
+}
+
+lt x y * {
+    * x < y;
+}
+
+mod x y * {
+    * x --- y;
+}
+
+mul x y * {
+    * x ++ y;
+}
+
+not x * {
+    * ~x;
+}
+
+ne x y * {
+    * x ::: y;
+}
+
+or x y * {
+    * x | y;
+}
+
+pow x y * {
+    * x +++ y;
+}
+
+random x * {
+    * x??;
+}
+
+special x * {
+    * x$;
+}
+
+sub x y * {
+    * x - y;
+}
+
+to_bit x * {
+    * / ? x ,, \;
+}
+
+to_string x * {
+    * ""?!(x);
+}
+
+xor x y * {
+    * x ^ y;
+}choices array k * {
+    * [array?? ... _ ->? <<..k>>];
+}
+
+randint start end * {
+    * (end - start+)?? + start;
+}
+
+sample array k * {
+    ? k > array$ {
+        "the sample cannot be bigger than the array"!!!;
+    }
+    o: [];
+    ? array?! :: <-types.Slice {
+        old_array: []?!(array);
+    } ,, {
+        old_array: array<<>>;
+    }
+    .. o$ < k {
+        e: old_array??;
+        o+: [e];
+        old_array-: [e];
+    }
+    * o;
+}
+
+shuffle array * {
+    ? array?! :: <-types.Slice {
+        "cannot shuffle slices"!!!;
+    }
+    shuffled_array: [];
+    old_array: array<<>>;
+    .. old_array$> {
+        e: old_array??;
+        shuffled_array+: [e];
+        old_array-: [e];
+    }
+    * shuffled_array;
+}UPPERCASE: "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+LOWERCASE: "abcdefghijklmnopqrstuvwxyz";
+LETTERS: UPPERCASE + LOWERCASE;
+
+OCTDIGITS: "01234567";
+DIGITS: OCTDIGITS + "89";
+HEXDIGITS: DIGITS + "abcdef";
+
+PUNCTUATION: "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+WHITESPACE: " \t\n\r\f\v";
+
+PRINTABLE: LETTERS + DIGITS + PUNCTUATION + WHITESPACE;
+
+capitalize string * {
+    ? ~~ string { * string; }
+    * to_upper(string<<\>>) + to_lower(string<</..>>);
+}
+
+center string length char? * {
+    char <> " ";
+    ? char$ > / {
+        "char has to be of length 1"!!!;
+    }
+    index: \;
+    .. string$ < length {
+        ? index {
+            string: char + string;
+        } ,, {
+            string+: char;
+        }
+        index+:;
+        index---:;
+    }
+    * string;
+}
+
+ends_with string suffix * {
+    ? suffix$ > string$ { * \; }
+    ? suffix :: string { * /; }
+    * string<<-suffix$..>> :: suffix;
+}
+
+is_alphabetic string * {
+    * is_in_group(string, LETTERS);
+}
+
+is_alphanumeric string * {
+    * is_in_group(string, LETTERS + DIGITS);
+}
+
+is_capitalized string * {
+    * string :: capitalize(string);
+}
+
+is_decimal string * {
+    * is_in_group(string, DIGITS);
+}
+
+is_hexadecimal string * {
+    * is_in_group(string, HEXDIGITS);
+}
+
+is_in_group string group * {
+    ... char ->? string {
+        ? char ~~ ->? group { * \; }
+    }
+    * /;
+}
+
+is_lower string * {
+    * string :: to_lower(string);
+}
+
+is_octal string * {
+    * is_in_group(string, OCTDIGITS);
+}
+
+is_title string * {
+    * string :: title(string);
+}
+
+is_upper string * {
+    * string :: to_upper(string);
+}
+
+is_wrapped string chars * {
+    * starts_with(string, chars) && ends_with(string, chars);
+}
+
+join iterable delimiter? * {
+    delimiter <> "";
+    o: "";
+    ... e ->? iterable {
+        o+: ""?!(e);
+        o+: delimiter;
+    }
+    ? delimiter {
+        o: o<<..-delimiter$>>;
+    }
+    * o;
+}
+
+leftpad string length char? * {
+    char <> " ";
+    * pad(string, length, char) + string;
+}
+
+ordinal n * {
+    10: /\/\;
+    ords: {{/ -> "st", /\ -> "nd", // -> "rd"}};
+    ? n --- (10 ++ 10) ~~ ->? <</\\../\/\/>> && n --- 10 ->? ords {
+        * "$0$1" --- [n, ords<<n --- 10>>];
+    }
+    * "$0th" --- [n];
+}
+
+pad string length char? * {
+    char <> " ";
+    ? char$ > / {
+        "char has to be of length 1"!!!;
+    }
+    ? length < string$ { * string; }
+    * char ++ (length - string$);
+}
+
+replace string replacements count? * {
+    count <> -/;
+
+    replace string from to count * {
+        empty * {
+            ? ~~ from { * to; }
+            * string;
+        }
+
+        interleave count * {
+            out: to;
+            count-:;
+            ... i ->? string {
+                out+: i;
+                ? count {
+                    out+: to;
+                    count-:;
+                }
+            }
+            * out;
+        }
+
+        del_char count * {
+            out: "";
+            ... i ->? string {
+                ? count && i :: from {
+                    count-:;
+                } ,, {
+                    out+: i;
+                }
+            }
+            * out;
+        }
+
+        replace_substring count * {
+            string_copy: string;
+            out: "";
+            find: <-iter.find;
+            .. count && from ->? string_copy {
+                i: find(string_copy, from);
+                out+: string_copy<<..i>>;
+                out+: to;
+                string_copy: string_copy<<i + from$..>>;
+                count-:;
+            }
+            * out + string_copy;
+        }
+
+        replace_char count * {
+            out: "";
+            ... i ->? string {
+                ? i :: from && count {
+                    out+: to;
+                    count-:;
+                } ,, {
+                    out+: i;
+                }
+            }
+            * out;
+        }
+
+        ? ~~ string {
+            * empty();
+        } ,, ? ~~ from {
+            * interleave(count);
+        } ,, ? from$ :: / {
+            ? ~~ to {
+                * del_char(count);
+            }
+            * replace_char(count);
+        } ,, {
+            * replace_substring(count);
+        }
+    }
+
+    ? replacements?! ::: <-types.Table {
+        "invalid type for replacements: " + ""?!(replacements?!)!!!;
+    }
+    replacements: {{k -> v ... k, v ->? replacements >< replacements$}};
+    ? ~~ <-iter.all([count, replacements]) {
+        * string;
+    }
+    ... f, t ->? replacements >< replacements$ {
+        string: replace(string, f, t, count);
+    }
+    * string;
+}
+
+rightpad string length char? * {
+    char <> " ";
+    * string + pad(string, length, char);
+}
+
+split string separator? * {
+    separator <> " ";
+    ? ~~ separator { ["empty separator", "use []?!(string) instead"]!!!; }
+    ? separator?! :: []?! {
+        first: separator<<\>>;
+        rest: separator<</..>>;
+        string: replace(string, {{i -> first ... i ->? rest}});
+        separator: first;
+    }
+    ? separator ~~ ->? string { * [string]; }
+    ? separator$ :: / {
+        * #split_char(string, separator);
+    }
+    out: [];
+    <=iter.find;
+    .. {
+        idx: find(string, separator);
+        ? idx :: -/ { <- }
+        out+: [string<<..idx>>];
+        string: string<<idx+separator$..>>;
+    }
+    * out + [string];
+}
+
+#split_char string separator * {
+    out: [];
+    temp: "";
+    ... char ->? string {
+        ? char :: separator {
+            out+: [temp];
+            temp: "";
+        } ,, {
+            temp+: char;
+        }
+    }
+    * out + [temp];
+}
+
+split_lines string * {
+    * split(
+        replace(string, {{"\r\n" -> "\n"}}),
+        []?!("\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029")
+    );
+}
+
+starts_with string prefix * {
+    ? prefix$ > string$ { * \; }
+    ? prefix :: string { * /; }
+    * string<<..prefix$>> :: prefix;
+}
+
+strip string chars? * {
+    chars <> " ";
+    * strip_left(strip_right(string, chars), chars);
+}
+
+strip_left string prefix * {
+    .. starts_with(string, prefix) {
+        string: string<<prefix$..>>;
+    }
+    * string;
+}
+
+strip_right string suffix * {
+    .. ends_with(string, suffix) {
+        string: string<<..-suffix$>>;
+    }
+    * string;
+}
+
+swapcase string * {
+    out: "";
+    ... char ->? string {
+        ? is_upper(char) {
+            out+: to_lower(char);
+        } ,, {
+            out+: to_upper(char);
+        }
+    }
+    * out;
+}
+
+title string * {
+    * join([capitalize(w) ... w ->? split(string)], " ");
+}
+
+to_lower string * {
+    ? string?! ::: <-types.String {
+        "invalid type: " + ""?!(string?!)!!!;
+    }
+    out: "";
+    ... char ->? string {
+        ? char% ->? <</\\\\\/../\//\/\>> {
+            out+: (char% + /\\\\\)%;
+        } ,, {
+            out+: char;
+        }
+    }
+    * out;
+}
+
+to_upper string * {
+    ? string?! ::: <-types.String {
+        "invalid type: " + ""?!(string?!)!!!;
+    }
+    out: "";
+    ... char ->? string {
+        ? char% ->? <<//\\\\/..////\/\>> {
+            out+: (char% - /\\\\\)%;
+        } ,, {
+            out+: char;
+        }
+    }
+    * out;
+}
+
+wrap string wrapper * {
+    * wrapper + string + wrapper;
+}Array: []?!;
+Number: \?!;
+Null: (||)?!;
+Slice: <<>>?!;
+String: ""?!;
+Table: {{}}?!;
+Zip: ("" >< "")?!;
+
+
+@ Boolean {
+    => value * {
+        ? value?! :: ""?! {
+            'value: {{"true" -> /, "false" -> \}}<<<-string.to_lower(value)>>;
+        } ,, {
+            'value: / ? value ,, \;
+        }
+    }
+
+    ! * { * "true" ? 'value ,, "false"; }
+    ? * { * 'value; }
+
+    val obj * {
+        ? obj?! :: '?! { * obj.value; }
+        * obj;
+    }
+
+    :: other * {
+        * Boolean('value :: 'val(other));
+    }
+
+    > other * { * Boolean('value > 'val(other)); }
+
+
+    + other * {
+        out: 'value + 'val(other);
+        ? out > / {
+            * out;
+        } ,, {
+            * Boolean(out);
+        }
+    }
+
+    - other * {
+        out: 'value - 'val(other);
+        ? out< {
+            * out;
+        } ,, {
+            * Boolean(out);
+        }
+    }
+
+    ++ other * {
+        * Boolean('value ++ 'val(other));
+    }
+
+    -- other * {
+        * Boolean('value -- 'val(other));
+    }
+
+    +++ other * {
+        * Boolean('value +++ 'val(other));
+    }
+
+    --- other * {
+        * Boolean('value --- 'val(other));
+    }
+
+    & other * { * Boolean('value & 'val(other)); }
+    ^ other * { * Boolean('value ^ 'val(other)); }
+    | other * { * Boolean('value | 'val(other)); }
+
+    ~ * { * Boolean(\ ? 'value ,, /); }
+}
+
+@ UUID4 {
+    => * {
+        hex: <-string.join(<-random.choices(<-string.HEXDIGITS, /\\\\\));
+        hex<<//\\>>: "4";
+        hex<</\\\\>>: "89ab"??;
+        'hex: hex;
+        'dec: Integer("x:" + hex);
+    }
+
+    ! * {
+        h: 'hex;
+        8: /\\\;
+        12: //\\;
+        16: /\\\\;
+        20: /\/\\;
+        * <-string.join(
+            [h<<..8>>, h<<8..12>>, h<<12..16>>, h<<16..20>>, h<<20..>>],
+            "-"
+        );
+    }
+}
+
+@ Frozen {
+    => val * {
+        t: val?!;
+        ? t ~~ ->? [Array, Table] {
+            "type $0 is already frozen" --- [t]!!!;
+        }
+        ? t :: Array {
+            '#val: val<<>>;
+        } ,, {
+            '#val: {{k -> v ... k, v ->? val >< val$}};
+        }
+        '#t: t;
+    }
+
+    ## * { * <-iter.reduce(<-operator.xor, [//\/\\/\\\/\\\\/\\\\\/] + '#val); }
+    ! * { * "Frozen($0)" --- ""?!('#val); }
+    ->? element * { * element ->? '#val; }
+    ... * { ... i ->? '#val { ** i; } }
+    <<>> index * { * '#val<<index>>; }
+    >< other * { * '#val >< other; }
+    :: other * { * '#val :: other.#val; }
+    ? * { * / ? '#val ,, \; }
+    $ * { * '#val$; }
+}
