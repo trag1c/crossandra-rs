@@ -17,7 +17,6 @@ pub(crate) struct Core<'a> {
     tokenizer: &'a Tokenizer<'a>,
     chunk_size: usize,
     remaining_source: &'a str,
-    chars: std::str::CharIndices<'a>,
     ignored: FxHashSet<char>,
     position: usize,
 }
@@ -28,7 +27,6 @@ impl<'a> Core<'a> {
             tokenizer: tok,
             chunk_size: tok.literals.keys().map(|x| x.len()).max().unwrap_or(1),
             remaining_source: source,
-            chars: source.char_indices(),
             ignored,
             position: 0,
         }
@@ -126,14 +124,16 @@ impl Iterator for Core<'_> {
     type Item = Result<Token, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (index, _) = self.chars.find(|(_, c)| !self.ignored.contains(c))?;
+        let (index, _) = self
+            .remaining_source
+            .char_indices()
+            .find(|(_, c)| !self.ignored.contains(c))?;
         self.remaining_source = &self.remaining_source[index..];
 
         let handling_result = self.handle(self.remaining_source, self.chunk_size);
 
         if let Ok((name, value, size)) = handling_result {
             self.remaining_source = &self.remaining_source[size..];
-            self.chars = self.remaining_source.char_indices();
             self.position += index + size;
             return Some(Ok(Token {
                 name,
@@ -147,7 +147,6 @@ impl Iterator for Core<'_> {
                 continue;
             };
             self.remaining_source = &self.remaining_source[tok.end()..];
-            self.chars = self.remaining_source.char_indices();
             let size = tok.end() - tok.start();
             self.position += index + size;
             return Some(Ok(Token {
@@ -159,7 +158,6 @@ impl Iterator for Core<'_> {
 
         let char = handling_result.unwrap_err();
         self.remaining_source = &self.remaining_source[char.len_utf8()..];
-        self.chars = self.remaining_source.char_indices();
         self.position += 1;
         Some(Err(Error::BadToken(char, self.position - 1)))
     }
