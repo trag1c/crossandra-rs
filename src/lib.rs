@@ -770,6 +770,18 @@ mod tests {
     }
 
     #[test]
+    fn word_tokenization() {
+        let tok = Tokenizer::default()
+            .with_patterns(vec![common::WORD.clone()])
+            .unwrap();
+        let tokens: Vec<_> = tok.tokenize("Hello, world!").flatten().collect();
+        assert_eq!(
+            tokens,
+            make_output(vec![(("word", "Hello"), 0), (("word", "world"), 7)])
+        );
+    }
+
+    #[test]
     fn fast_tokenization_continues_after_bad_token() {
         let (a, b) = (("a", "a"), ("b", "b"));
         let tok = Tokenizer::default()
