@@ -157,10 +157,11 @@ impl Iterator for Core<'_> {
             }));
         }
 
-        Some(Err(Error::BadToken(
-            handling_result.unwrap_err(),
-            self.position,
-        )))
+        let char = handling_result.unwrap_err();
+        self.remaining_source = &self.remaining_source[char.len_utf8()..];
+        self.chars = self.remaining_source.char_indices();
+        self.position += 1;
+        Some(Err(Error::BadToken(char, self.position - 1)))
     }
 }
 
