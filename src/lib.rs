@@ -465,7 +465,7 @@ mod tests {
 
         let pattern = ("a".into(), r"\d+".into());
         assert!(tok.set_patterns(vec![pattern.clone()]).is_ok());
-        assert_eq!(tok.patterns.first().unwrap().1.as_str(), r"^(\d+)");
+        assert_eq!(tok.patterns.first().unwrap().1.as_str(), r"^(?:\d+)");
 
         assert!(tok.set_patterns(vec![pattern.clone(), pattern]).is_ok());
         assert!(tok.set_patterns(vec![("a".into(), "+".into())]).is_err());
@@ -835,5 +835,14 @@ mod tests {
             let expected_err = (expected_errors[i / 2], i * 2 + 1);
             assert!(matches!(tokens[i], Err(Error::BadToken(c, p)) if (c, p) == expected_err));
         }
+    }
+
+    #[test]
+    fn backreference_pattern() {
+        let tok = Tokenizer::default()
+            .with_patterns(vec![("a".into(), r"(a)b\1".into())])
+            .unwrap();
+        let out: Vec<_> = tok.tokenize("abaaba").flatten().collect();
+        assert_eq!(out, make_output(vec![(("a", "aba"), 0), (("a", "aba"), 3)]));
     }
 }

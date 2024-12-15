@@ -32,7 +32,7 @@ fn force_start_anchor(pattern: &str) -> String {
         .collect();
 
     format!(
-        "^({})",
+        "^(?:{})",
         pattern
             .chars()
             .enumerate()
@@ -70,14 +70,14 @@ mod tests {
     #[test]
     fn adjust() {
         let tests = [
-            ("", "^()"),
-            (r"\d+", r"^(\d+)"),
-            (r"^\d+", r"^(\d+)"),
-            (r"x|^y", r"^(x|y)"),
-            (r"^x|^y", r"^(x|y)"),
-            (r"^x|\^y", r"^(x|\^y)"),
-            (r"ba[^rz]", r"^(ba[^rz])"),
-            (r"^\^^[^]^", r"^(\^[^])"),
+            ("", "^(?:)"),
+            (r"\d+", r"^(?:\d+)"),
+            (r"^\d+", r"^(?:\d+)"),
+            (r"x|^y", r"^(?:x|y)"),
+            (r"^x|^y", r"^(?:x|y)"),
+            (r"^x|\^y", r"^(?:x|\^y)"),
+            (r"ba[^rz]", r"^(?:ba[^rz])"),
+            (r"^\^^[^]^", r"^(?:\^[^])"),
         ];
         for (inp, out) in tests {
             assert_eq!(force_start_anchor(inp), out);
@@ -92,7 +92,7 @@ mod tests {
         match &patterns[..] {
             [(name, pat)] => {
                 assert_eq!(name, "digit");
-                assert_eq!(pat.as_str(), "^([0-9])");
+                assert_eq!(pat.as_str(), "^(?:[0-9])");
             }
             _ => panic!("prepare returned a vec of length != 1"),
         };
