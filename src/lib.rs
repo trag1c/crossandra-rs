@@ -664,6 +664,32 @@ mod tests {
     }
 
     #[test]
+    fn multichar_breakpoint_tokenization() {
+        let (x, y, z) = (("x", "ab"), ("y", "bc"), ("z", "abcd"));
+        let tok = Tokenizer::default()
+            .with_literals(&FxHashMap::from_iter([x, y, z]))
+            .unwrap();
+        let source = "ccddbabcaabcccdcbaaabdaabcbaabbbabaaaccabcdabaabadbcacddacbddbcb";
+        let tokens: Vec<_> = tok.tokenize(source).flatten().collect();
+        assert_eq!(
+            tokens,
+            make_output(vec![
+                (x, 5),
+                (x, 9),
+                (x, 19),
+                (x, 23),
+                (x, 28),
+                (x, 32),
+                (z, 39),
+                (x, 43),
+                (x, 46),
+                (y, 50),
+                (y, 61)
+            ])
+        );
+    }
+
+    #[test]
     fn fast_tokenization_with_ignoreset() {
         let (foo, bar) = (("foo", "x"), ("bar", "y"));
         let tok = Tokenizer::default()
