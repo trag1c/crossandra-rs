@@ -99,12 +99,7 @@ impl<'a> Core<'a> {
         if let Some((s, len)) = break_path {
             return Ok((
                 s.to_string(),
-                // FIXME: don't flip the hashmap every time, try caching it somewhere
-                if let Some(&value) = flip_hashmap(&self.tokenizer.literals).get(s.as_str()) {
-                    value.to_string()
-                } else {
-                    return Err(s.chars().next().expect("the token will never be unnamed"));
-                },
+                remaining_source.chars().take(len).collect(),
                 len,
             ));
         }
