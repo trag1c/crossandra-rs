@@ -1,11 +1,9 @@
-use rustc_hash::FxHashMap;
-
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use crossandra::Tokenizer;
 
 pub fn brainfuck(c: &mut Criterion) {
     let tok = Tokenizer::default()
-        .with_literals(&FxHashMap::from_iter([
+        .with_literals(&[
             ("add", "+"),
             ("sub", "-"),
             ("left", "<"),
@@ -14,7 +12,7 @@ pub fn brainfuck(c: &mut Criterion) {
             ("write", "."),
             ("begin_loop", "["),
             ("end_loop", "]"),
-        ]))
+        ])
         .unwrap();
 
     // 100 chars-long program that prints "Hello World!"

@@ -2,8 +2,8 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{error::Error, tree::Tree, Token, Tokenizer};
 
-pub(crate) fn flip_hashmap<'a>(hm: &FxHashMap<&'a str, &'a str>) -> FxHashMap<&'a str, &'a str> {
-    hm.iter().map(|(&k, &v)| (v, k)).collect()
+pub(crate) fn build_hashmap<'a>(hm: &[(&'a str, &'a str)]) -> FxHashMap<&'a str, &'a str> {
+    hm.iter().map(|(k, v)| (*v, *k)).collect()
 }
 
 fn prepare_literal_map<'a>(tok: &'a Tokenizer) -> FxHashMap<char, &'a str> {
@@ -207,9 +207,9 @@ mod tests {
 
     #[test]
     fn flip_hashmap_ok() {
-        assert_eq!(flip_hashmap(&FxHashMap::default()), FxHashMap::default());
+        assert_eq!(build_hashmap(&[]), FxHashMap::default());
         assert_eq!(
-            flip_hashmap(&FxHashMap::from_iter([("a", "b"), ("c", "d")])),
+            build_hashmap(&[("a", "b"), ("c", "d")]),
             FxHashMap::from_iter([("b", "a"), ("d", "c")])
         );
     }
@@ -219,7 +219,7 @@ mod tests {
         assert_eq!(
             prepare_literal_map(
                 &Tokenizer::default()
-                    .with_literals(&FxHashMap::from_iter([("x", "a"), ("y", "b")]))
+                    .with_literals(&[("x", "a"), ("y", "b")])
                     .unwrap()
             ),
             FxHashMap::from_iter([('a', "x"), ('b', "y")])

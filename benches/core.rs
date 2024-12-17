@@ -93,7 +93,6 @@ pub fn samarium(c: &mut Criterion) {
         ("line_comment".into(), r"==[^\n]*".into()),
         ("variable".into(), r"\w+".into()),
     ];
-    let literals = FxHashMap::from_iter(literals);
     let tok = Tokenizer::default()
         .with_literals(&literals)
         .unwrap()
