@@ -101,7 +101,7 @@ pub fn samarium(c: &mut Criterion) {
     // one module from the samarium std
     let datetime = include_str!("assets/samarium/datetime.sm");
 
-    c.bench_function("samarium datetime.sm", |b| {
+    c.bench_function("datetime.sm", |b| {
         b.iter(|| {
             black_box(
                 tok.tokenize(black_box(datetime))
@@ -111,12 +111,17 @@ pub fn samarium(c: &mut Criterion) {
     });
 
     // whole samarium std concatenated to one file
-    let mut long_group = c.benchmark_group("samarium std");
+    let mut long_group = c.benchmark_group("samarium long");
     long_group.sample_size(10);
-    let long = include_str!("assets/samarium/std.sm");
+    let std = include_str!("assets/samarium/std.sm");
 
-    long_group.bench_function("samarium std.sm", |b| {
-        b.iter(|| black_box(tok.tokenize(black_box(long)).collect::<Result<Vec<_>, _>>()))
+    long_group.bench_function("std.sm", |b| {
+        b.iter(|| black_box(tok.tokenize(black_box(std)).collect::<Result<Vec<_>, _>>()))
+    });
+    let dtstripped = include_str!("assets/samarium/dtstripped.sm");
+
+    long_group.bench_function("dtstripped.sm", |b| {
+        b.iter(|| black_box(tok.tokenize(black_box(dtstripped)).collect::<Result<Vec<_>, _>>()))
     });
 }
 
