@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{error::Error, tree::Tree, Token, Tokenizer};
@@ -36,7 +38,7 @@ impl<'a> Core<'a> {
         &self,
         remaining_source: &str,
         chunk_size: usize,
-    ) -> Result<(String, String, usize), char> {
+    ) -> Result<(Cow<'a, str>, String, usize), char> {
         let mut break_path = None;
         let mut tree = &self.tokenizer.tree;
 
@@ -56,7 +58,7 @@ impl<'a> Core<'a> {
             match node.get(&Some(v)) {
                 Some(Tree::Leaf(token_name)) => {
                     return Ok((
-                        token_name.to_string(),
+                        Cow::Borrowed(token_name),
                         remaining_source[..=i].to_string(),
                         i + 1,
                     ));
@@ -65,7 +67,11 @@ impl<'a> Core<'a> {
                 None => match node.get(&None) {
                     None => break,
                     Some(Tree::Leaf(token_name)) => {
-                        return Ok((token_name.to_string(), remaining_source[..i].to_string(), i));
+                        return Ok((
+                            Cow::Borrowed(token_name),
+                            remaining_source[..i].to_string(),
+                            i,
+                        ));
                     }
                     _ => unreachable!("key None can never lead to a Node"),
                 },
@@ -90,7 +96,7 @@ impl<'a> Core<'a> {
             match node.get(&None) {
                 None => {}
                 Some(Tree::Leaf(token_name)) => {
-                    return Ok((token_name.to_string(), joined_chunk, joined_chunk_len));
+                    return Ok((Cow::Borrowed(token_name), joined_chunk, joined_chunk_len));
                 }
                 _ => unreachable!("key None can never lead to a Node"),
             }
@@ -98,14 +104,14 @@ impl<'a> Core<'a> {
 
         if let Some((s, len)) = break_path {
             return Ok((
-                s.to_string(),
+                Cow::Borrowed(s),
                 remaining_source.chars().take(len).collect(),
                 len,
             ));
         }
 
         if let Some(&name) = self.tokenizer.literals.get(joined_chunk.as_str()) {
-            Ok((name.to_string(), joined_chunk, joined_chunk_len))
+            Ok((Cow::Borrowed(name), joined_chunk, joined_chunk_len))
         } else {
             Err(joined_chunk
                 .chars()
@@ -115,8 +121,8 @@ impl<'a> Core<'a> {
     }
 }
 
-impl Iterator for Core<'_> {
-    type Item = Result<Token, Error>;
+impl<'a> Iterator for Core<'a> {
+    type Item = Result<Token<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let (index, _) = self
@@ -145,7 +151,7 @@ impl Iterator for Core<'_> {
             let size = tok.end() - tok.start();
             self.position += index + size;
             return Some(Ok(Token {
-                name: name.clone(),
+                name: Cow::Borrowed(name),
                 value: tok.as_str().to_string(),
                 position: self.position - size,
             }));
@@ -179,11 +185,11 @@ where
     }
 }
 
-impl<I> Iterator for Fast<'_, I>
+impl<'a, I> Iterator for Fast<'a, I>
 where
     I: Iterator<Item = char>,
 {
-    type Item = Result<Token, Error>;
+    type Item = Result<Token<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let char = self.chars.find(|c| {
@@ -192,7 +198,7 @@ where
         })?;
         match self.literal_map.get(&char) {
             Some(&name) => Some(Ok(Token {
-                name: name.to_string(),
+                name: Cow::Borrowed(name),
                 value: char.to_string(),
                 position: self.position - 1,
             })),
