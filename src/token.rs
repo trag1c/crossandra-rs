@@ -18,7 +18,7 @@ pub struct Token<'a> {
     /// The type or category of the token (e.g., "int", "identifier", "operator").
     pub name: Cow<'a, str>,
     /// The actual text/value from the source code that this token represents.
-    pub value: String,
+    pub value: Cow<'a, str>,
     /// The position of the token in the source code.
     /// * For [`Tokenizer::tokenize`], this is the byte offset from the start of the entire source.
     /// * For [`Tokenizer::tokenize_lines`], this is the byte offset from the start of each line.
@@ -28,11 +28,11 @@ pub struct Token<'a> {
     pub position: usize,
 }
 
-impl<'a, T: Into<String>> From<(&'a str, T, usize)> for Token<'a> {
-    fn from(value: (&'a str, T, usize)) -> Self {
+impl<'a> From<(&'a str, &'a str, usize)> for Token<'a> {
+    fn from(value: (&'a str, &'a str, usize)) -> Self {
         Token {
             name: Cow::Borrowed(value.0),
-            value: value.1.into(),
+            value: Cow::Borrowed(value.1),
             position: value.2,
         }
     }

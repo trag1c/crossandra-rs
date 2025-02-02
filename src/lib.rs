@@ -481,7 +481,7 @@ mod tests {
         };
     }
 
-    fn make_output<'a>(tokens: Vec<((&'a str, &str), usize)>) -> Vec<Token<'a>> {
+    fn make_output<'a>(tokens: Vec<((&'a str, &'a str), usize)>) -> Vec<Token<'a>> {
         tokens
             .into_iter()
             .map(|((n, v), p)| Token::from((n, v, p)))

@@ -104,7 +104,7 @@ mod tests {
                         .tokenize(inp)
                         .map(Result::unwrap)
                         .map(|token| token.value.clone())
-                        .collect::<Vec<String>>();
+                        .collect::<Vec<_>>();
                     assert_eq!(values, expected_values);
                 }
                 (res, exp) => {

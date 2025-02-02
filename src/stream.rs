@@ -36,9 +36,9 @@ impl<'a> Core<'a> {
 
     fn handle(
         &self,
-        remaining_source: &str,
+        remaining_source: &'a str,
         chunk_size: usize,
-    ) -> Result<(Cow<'a, str>, String, usize), char> {
+    ) -> Result<(Cow<'a, str>, Cow<'a, str>, usize), char> {
         let mut break_path = None;
         let mut tree = &self.tokenizer.tree;
 
@@ -59,7 +59,7 @@ impl<'a> Core<'a> {
                 Some(Tree::Leaf(token_name)) => {
                     return Ok((
                         Cow::Borrowed(token_name),
-                        remaining_source[..=i].to_string(),
+                        Cow::Borrowed(&remaining_source[..=i]),
                         i + 1,
                     ));
                 }
@@ -69,7 +69,7 @@ impl<'a> Core<'a> {
                     Some(Tree::Leaf(token_name)) => {
                         return Ok((
                             Cow::Borrowed(token_name),
-                            remaining_source[..i].to_string(),
+                            Cow::Borrowed(&remaining_source[..i]),
                             i,
                         ));
                     }
@@ -96,7 +96,11 @@ impl<'a> Core<'a> {
             match node.get(&None) {
                 None => {}
                 Some(Tree::Leaf(token_name)) => {
-                    return Ok((Cow::Borrowed(token_name), joined_chunk, joined_chunk_len));
+                    return Ok((
+                        Cow::Borrowed(token_name),
+                        Cow::Owned(joined_chunk),
+                        joined_chunk_len,
+                    ));
                 }
                 _ => unreachable!("key None can never lead to a Node"),
             }
@@ -111,7 +115,11 @@ impl<'a> Core<'a> {
         }
 
         if let Some(&name) = self.tokenizer.literals.get(joined_chunk.as_str()) {
-            Ok((Cow::Borrowed(name), joined_chunk, joined_chunk_len))
+            Ok((
+                Cow::Borrowed(name),
+                Cow::Owned(joined_chunk),
+                joined_chunk_len,
+            ))
         } else {
             Err(joined_chunk
                 .chars()
@@ -152,7 +160,7 @@ impl<'a> Iterator for Core<'a> {
             self.position += index + size;
             return Some(Ok(Token {
                 name: Cow::Borrowed(name),
-                value: tok.as_str().to_string(),
+                value: Cow::Borrowed(tok.as_str()),
                 position: self.position - size,
             }));
         }
@@ -199,7 +207,7 @@ where
         match self.literal_map.get(&char) {
             Some(&name) => Some(Ok(Token {
                 name: Cow::Borrowed(name),
-                value: char.to_string(),
+                value: Cow::Owned(char.to_string()),
                 position: self.position - 1,
             })),
             None => Some(Err(Error::BadToken(char, self.position - 1))),
