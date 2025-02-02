@@ -1,5 +1,3 @@
-use rustc_hash::FxHashMap;
-
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use crossandra::{common, Tokenizer};
 
