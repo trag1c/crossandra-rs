@@ -120,7 +120,7 @@ pub struct Tokenizer<'a> {
     patterns: Vec<(String, Regex)>,
     ignore_whitespace: bool,
     ignored_characters: FxHashSet<char>,
-    tree: Tree,
+    tree: Tree<'a>,
 }
 
 impl PartialEq for Tokenizer<'_> {

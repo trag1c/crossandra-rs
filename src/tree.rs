@@ -1,18 +1,20 @@
+use std::borrow::Cow;
+
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Tree {
-    Leaf(String),
-    Node(FxHashMap<Option<char>, Tree>),
+pub(crate) enum Tree<'a> {
+    Leaf(Cow<'a, str>),
+    Node(FxHashMap<Option<char>, Tree<'a>>),
 }
 
-pub(crate) fn generate_tree(literals: &FxHashMap<&str, &str>) -> Tree {
+pub(crate) fn generate_tree<'a>(literals: &FxHashMap<&'a str, &'a str>) -> Tree<'a> {
     let mut sorted_items: Vec<_> = literals.iter().collect();
     sorted_items.sort_by_key(|(k, _)| std::cmp::Reverse(k.len()));
 
-    let mut root = Tree::Node(FxHashMap::default());
+    let mut root: Tree<'a> = Tree::Node(FxHashMap::default());
 
-    for (k, &v) in sorted_items {
+    for (k, v) in sorted_items {
         let mut current = &mut root;
 
         // iterate over the characters in the key
@@ -34,11 +36,11 @@ pub(crate) fn generate_tree(literals: &FxHashMap<&str, &str>) -> Tree {
                     // if the current subtree is a node, insert the value as a subtree
                     .and_modify(|inner_tree| {
                         if let Tree::Node(node) = inner_tree {
-                            node.insert(None, Tree::Leaf(v.to_string()));
+                            node.insert(None, Tree::Leaf(Cow::Borrowed(v)));
                         }
                     })
                     // if the current subtree is a node, insert the value as a leaf
-                    .or_insert(Tree::Leaf(v.to_string()));
+                    .or_insert(Tree::Leaf(Cow::Borrowed(v)));
 
                 break; // needed to satisfy the borrow checker
             }
