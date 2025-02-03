@@ -24,5 +24,6 @@ harness = false
 name = "core"
 harness = false
 
-[profile.release]
+[profile.profiling]
+inherits = "release"
 debug = true
