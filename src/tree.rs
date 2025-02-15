@@ -1,10 +1,8 @@
-use std::borrow::Cow;
-
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Tree<'a> {
-    Leaf(Cow<'a, str>),
+    Leaf(&'a str),
     Node(FxHashMap<Option<char>, Tree<'a>>),
 }
 
@@ -36,11 +34,11 @@ pub(crate) fn generate_tree<'a>(literals: &FxHashMap<&'a str, &'a str>) -> Tree<
                     // if the current subtree is a node, insert the value as a subtree
                     .and_modify(|inner_tree| {
                         if let Tree::Node(node) = inner_tree {
-                            node.insert(None, Tree::Leaf(Cow::Borrowed(v)));
+                            node.insert(None, Tree::Leaf(v));
                         }
                     })
                     // if the current subtree is a node, insert the value as a leaf
-                    .or_insert(Tree::Leaf(Cow::Borrowed(v)));
+                    .or_insert(Tree::Leaf(v));
 
                 break; // needed to satisfy the borrow checker
             }
@@ -91,14 +89,14 @@ mod tests {
         assert_eq!(
             tree,
             hashmap! {
-                Some('+') => Leaf("add".into()),
-                Some(']') => Leaf("end_loop".into()),
-                Some('-') => Leaf("sub".into()),
-                Some('[') => Leaf("begin_loop".into()),
-                Some(',') => Leaf("read".into()),
-                Some('.') => Leaf("write".into()),
-                Some('>') => Leaf("right".into()),
-                Some('<') => Leaf("left".into()),
+                Some('+') => Leaf("add"),
+                Some(']') => Leaf("end_loop"),
+                Some('-') => Leaf("sub"),
+                Some('[') => Leaf("begin_loop"),
+                Some(',') => Leaf("read"),
+                Some('.') => Leaf("write"),
+                Some('>') => Leaf("right"),
+                Some('<') => Leaf("left"),
             }
         );
     }
@@ -118,16 +116,16 @@ mod tests {
             tree,
             Node(hashmap! {
                 Some('A') => Node(hashmap! {
-                    Some('B') => Node(hashmap! { Some('C') => Leaf("abc".into()) }),
-                    Some('C') => Node(hashmap! { Some('B') => Leaf("acb".into()) })
+                    Some('B') => Node(hashmap! { Some('C') => Leaf("abc") }),
+                    Some('C') => Node(hashmap! { Some('B') => Leaf("acb") })
                 }),
                 Some('B') => Node(hashmap! {
-                    Some('A') => Node(hashmap! { Some('C') => Leaf("bac".into()) }),
-                    Some('C') => Node(hashmap! { Some('A') => Leaf("bca".into()) })
+                    Some('A') => Node(hashmap! { Some('C') => Leaf("bac") }),
+                    Some('C') => Node(hashmap! { Some('A') => Leaf("bca") })
                 }),
                 Some('C') => Node(hashmap! {
-                    Some('A') => Node(hashmap! { Some('B') => Leaf("cab".into()) }),
-                    Some('B') => Node(hashmap! { Some('A') => Leaf("cba".into()) })
+                    Some('A') => Node(hashmap! { Some('B') => Leaf("cab") }),
+                    Some('B') => Node(hashmap! { Some('A') => Leaf("cba") })
                 }),
             })
         );
@@ -146,11 +144,11 @@ mod tests {
             Node(hashmap! {
                 Some('A') => Node(hashmap! {
                     Some('B') => Node(hashmap! {
-                        Some('C') => Leaf("x".into())
+                        Some('C') => Leaf("x")
                     }),
-                    None => Leaf("y".into())
+                    None => Leaf("y")
                 }),
-                Some('B') => Leaf("z".into())
+                Some('B') => Leaf("z")
             })
         );
     }
@@ -170,16 +168,16 @@ mod tests {
 
         let expected_tree = Node(hashmap! {
             Some('+') => Node(hashmap! {
-                None => Leaf("a".into()),
+                None => Leaf("a"),
                 Some('+') => Node(hashmap! {
-                    None => Leaf("b".into()),
+                    None => Leaf("b"),
                     Some('+') => Node(hashmap! {
-                        None => Leaf("c".into()),
+                        None => Leaf("c"),
                         Some('+') => Node(hashmap! {
-                            None => Leaf("d".into()),
+                            None => Leaf("d"),
                             Some('+') => Node(hashmap! {
-                                None => Leaf("e".into()),
-                                Some('+') => Leaf("f".into())
+                                None => Leaf("e"),
+                                Some('+') => Leaf("f")
                             })
                         })
                     })
@@ -280,151 +278,151 @@ mod tests {
 
         let expected_tree = Node(hashmap! {
             Some('%') => Node(hashmap! {
-                None => Leaf("cas".into()),
-                Some('>') => Leaf("fi_q_b_w".into()),
-                Some('~') => Node(hashmap! { Some('>') => Leaf("fi_b_w".into()) })
+                None => Leaf("cas"),
+                Some('>') => Leaf("fi_q_b_w"),
+                Some('~') => Node(hashmap! { Some('>') => Leaf("fi_b_w") })
             }),
             Some('&') => Node(hashmap! {
-                None => Leaf("ba".into()),
-                Some('&') => Leaf("an".into()),
+                None => Leaf("ba"),
+                Some('&') => Leaf("an"),
                 Some('~') => Node(hashmap! {
-                    Some('~') => Node(hashmap! { Some('>') => Leaf("fi_a".into()) }),
-                    Some('>') => Leaf("fi_q_a".into())
+                    Some('~') => Node(hashmap! { Some('>') => Leaf("fi_a") }),
+                    Some('>') => Leaf("fi_q_a")
                 }),
                 Some('%') => Node(hashmap! {
-                    Some('>') => Leaf("fi_q_b_a".into()),
-                    Some('~') => Node(hashmap! { Some('>') => Leaf("fi_b_a".into()) })
+                    Some('>') => Leaf("fi_q_b_a"),
+                    Some('~') => Node(hashmap! { Some('>') => Leaf("fi_b_a") })
                 })
             }),
             Some('-') => Node(hashmap! {
-                None => Leaf("su".into()),
+                None => Leaf("su"),
                 Some('>') => Node(hashmap! {
-                    Some('?') => Leaf("in".into()),
-                    None => Leaf("to".into())
+                    Some('?') => Leaf("in"),
+                    None => Leaf("to")
                 }),
                 Some('-') => Node(hashmap! {
-                    Some('-') => Leaf("mo".into()),
-                    None => Leaf("di".into())
+                    Some('-') => Leaf("mo"),
+                    None => Leaf("di")
                 })
             }),
             Some('>') => Node(hashmap! {
-                None => Leaf("gt".into()),
-                Some(':') => Leaf("ge".into()),
-                Some('>') => Leaf("s_c".into()),
-                Some('<') => Leaf("z".into())
+                None => Leaf("gt"),
+                Some(':') => Leaf("ge"),
+                Some('>') => Leaf("s_c"),
+                Some('<') => Leaf("z")
             }),
             Some('^') => Node(hashmap! {
-                None => Leaf("bx".into()),
-                Some('^') => Leaf("x".into())
+                None => Leaf("bx"),
+                Some('^') => Leaf("x")
             }),
-            Some('$') => Leaf("sp".into()),
+            Some('$') => Leaf("sp"),
             Some('!') => Node(hashmap! {
-                None => Leaf("pr".into()),
-                Some('?') => Leaf("pa".into()),
+                None => Leaf("pr"),
+                Some('?') => Leaf("pa"),
                 Some('!') => Node(hashmap! {
-                    None => Leaf("cat".into()),
-                    Some('!') => Leaf("th".into())
+                    None => Leaf("cat"),
+                    Some('!') => Leaf("th")
                 })
             }),
             Some('|') => Node(hashmap! {
-                None => Leaf("bo".into()),
-                Some('|') => Leaf("o".into())
+                None => Leaf("bo"),
+                Some('|') => Leaf("o")
             }),
             Some('*') => Node(hashmap! {
-                None => Leaf("fu".into()),
-                Some('*') => Leaf("y".into())
+                None => Leaf("fu"),
+                Some('*') => Leaf("y")
             }),
-            Some('(') => Leaf("p_o".into()),
+            Some('(') => Leaf("p_o"),
             Some('<') => Node(hashmap! {
-                None => Leaf("lt".into()),
-                Some('-') => Leaf("fr".into()),
-                Some('<') => Leaf("s_o".into()),
-                Some(':') => Leaf("le".into()),
-                Some('>') => Leaf("de".into()),
-                Some('=') => Leaf("im".into()),
+                None => Leaf("lt"),
+                Some('-') => Leaf("fr"),
+                Some('<') => Leaf("s_o"),
+                Some(':') => Leaf("le"),
+                Some('>') => Leaf("de"),
+                Some('=') => Leaf("im"),
                 Some('~') => Node(hashmap! {
-                    None => Leaf("fi_q_r".into()),
-                    Some('>') => Leaf("fi_r_w".into()),
-                    Some('%') => Leaf("fi_b_r".into()),
-                    Some('~') => Leaf("fi_r".into())
+                    None => Leaf("fi_q_r"),
+                    Some('>') => Leaf("fi_r_w"),
+                    Some('%') => Leaf("fi_b_r"),
+                    Some('~') => Leaf("fi_r")
                 }),
                 Some('%') => Node(hashmap! {
-                    None => Leaf("fi_q_b_r".into()),
-                    Some('>') => Leaf("fi_b_r_w".into())
+                    None => Leaf("fi_q_b_r"),
+                    Some('>') => Leaf("fi_b_r_w")
                 })
             }),
             Some('@') => Node(hashmap! {
-                None => Leaf("cl".into()),
-                Some('!') => Leaf("da".into()),
+                None => Leaf("cl"),
+                Some('!') => Leaf("da"),
                 Some('@') => Node(hashmap! {
-                    None => Leaf("u".into()),
-                    Some('@') => Leaf("ar".into())
+                    None => Leaf("u"),
+                    Some('@') => Leaf("ar")
                 })
             }),
             Some('=') => Node(hashmap! {
                 Some('>') => Node(hashmap! {
-                    None => Leaf("ent".into()),
-                    Some('!') => Leaf("ex".into())
+                    None => Leaf("ent"),
+                    Some('!') => Leaf("ex")
                 })
             }),
             Some('?') => Node(hashmap! {
-                None => Leaf("if".into()),
-                Some('!') => Leaf("ty".into()),
-                Some('~') => Node(hashmap! { Some('>') => Leaf("fi_c".into()) }),
+                None => Leaf("if"),
+                Some('!') => Leaf("ty"),
+                Some('~') => Node(hashmap! { Some('>') => Leaf("fi_c") }),
                 Some('?') => Node(hashmap! {
-                    None => Leaf("tr".into()),
-                    Some('?') => Leaf("r".into())
+                    None => Leaf("tr"),
+                    Some('?') => Leaf("r")
                 })
             }),
             Some('~') => Node(hashmap! {
-                None => Leaf("bn".into()),
-                Some('>') => Leaf("fi_q_w".into()),
+                None => Leaf("bn"),
+                Some('>') => Leaf("fi_q_w"),
                 Some('~') => Node(hashmap! {
-                    None => Leaf("no".into()),
-                    Some('>') => Leaf("fi_w".into())
+                    None => Leaf("no"),
+                    Some('>') => Leaf("fi_w")
                 })
             }),
             Some('{') => Node(hashmap! {
-                None => Leaf("brace_o".into()),
-                Some('{') => Leaf("t_o".into())
+                None => Leaf("brace_o"),
+                Some('{') => Leaf("t_o")
             }),
             Some('}') => Node(hashmap! {
-                None => Leaf("brace_c".into()),
-                Some('}') => Leaf("t_c".into())
+                None => Leaf("brace_c"),
+                Some('}') => Leaf("t_c")
             }),
             Some('+') => Node(hashmap! {
-                None => Leaf("ad".into()),
+                None => Leaf("ad"),
                 Some('+') => Node(hashmap! {
-                    None => Leaf("mu".into()),
-                    Some('+') => Leaf("po".into())
+                    None => Leaf("mu"),
+                    Some('+') => Leaf("po")
                 })
             }),
-            Some(')') => Leaf("p_c".into()),
+            Some(')') => Leaf("p_c"),
             Some(',') => Node(hashmap! {
-                None => Leaf("se".into()),
-                Some(',') => Leaf("e".into()),
-                Some('.') => Node(hashmap! { Some(',') => Leaf("sle".into()) })
+                None => Leaf("se"),
+                Some(',') => Leaf("e"),
+                Some('.') => Node(hashmap! { Some(',') => Leaf("sle") })
             }),
-            Some('\'') => Leaf("ins".into()),
+            Some('\'') => Leaf("ins"),
             Some(':') => Node(hashmap! {
-                None => Leaf("as".into()),
+                None => Leaf("as"),
                 Some(':') => Node(hashmap! {
-                    None => Leaf("eq".into()),
-                    Some(':') => Leaf("ne".into())
+                    None => Leaf("eq"),
+                    Some(':') => Leaf("ne")
                 })
             }),
             Some('#') => Node(hashmap! {
-                None => Leaf("enu".into()),
-                Some('#') => Leaf("h".into())
+                None => Leaf("enu"),
+                Some('#') => Leaf("h")
             }),
-            Some('[') => Leaf("brack_o".into()),
-            Some(';') => Leaf("end".into()),
-            Some(']') => Leaf("brack_c".into()),
+            Some('[') => Leaf("brack_o"),
+            Some(';') => Leaf("end"),
+            Some(']') => Leaf("brack_c"),
             Some('.') => Node(hashmap! {
-                None => Leaf("at".into()),
+                None => Leaf("at"),
                 Some('.') => Node(hashmap! {
-                    None => Leaf("w".into()),
-                    Some('.') => Leaf("fo".into())
+                    None => Leaf("w"),
+                    Some('.') => Leaf("fo")
                 })
             })
         });
