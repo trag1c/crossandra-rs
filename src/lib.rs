@@ -183,7 +183,7 @@ impl<'a> Tokenizer<'a> {
     pub fn tokenize(
         &'a self,
         source: &'a str,
-    ) -> Box<dyn Iterator<Item = Result<Token, Error>> + 'a> {
+    ) -> Box<dyn Iterator<Item = Result<Token<'a>, Error>> + 'a> {
         let ignored = self.prepare_ignored();
         if self.can_use_fast_mode() {
             Box::new(stream::Fast::new(self, source.chars(), ignored))
@@ -202,7 +202,7 @@ impl<'a> Tokenizer<'a> {
     pub fn tokenize_lines(
         &'a self,
         source: &'a str,
-    ) -> impl ParallelIterator<Item = Result<Vec<Token>, Error>> + 'a {
+    ) -> impl ParallelIterator<Item = Result<Vec<Token<'a>>, Error>> + 'a {
         source
             .par_split('\n')
             .map(|line| self.tokenize(line).collect())
