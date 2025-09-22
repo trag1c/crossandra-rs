@@ -1,4 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
+
+use criterion::{criterion_group, criterion_main, Criterion};
 use crossandra::Tokenizer;
 
 pub fn brainfuck(c: &mut Criterion) {
