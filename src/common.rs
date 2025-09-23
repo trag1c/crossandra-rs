@@ -1,7 +1,7 @@
 //! A collection of common patterns for use in tokenizers.
 use lazy_static::lazy_static;
 
-const STRING_BASE: &str = r".*?(?<!\\)(\\\\)*?";
+const STRING_BASE: &str = r"(?:\\.|[^\\])*?";
 const INT_BASE: &str = r"[0-9](?:[0-9_]*[0-9])?";
 const FLOAT_BASE: &str = concat!(
     r"[0-9](?:[0-9_]*[0-9])?",                // integer part (required)
@@ -24,7 +24,7 @@ lazy_static! {
         ("single_quoted_string".into(), format!("'{STRING_BASE}'"));
     /// A string enclosed in double quotes (e.g. `"hello there"`).
     pub static ref DOUBLE_QUOTED_STRING: (String, String) =
-        ("double_quoted_string".into(), format!("\"{STRING_BASE}\""));
+        ("double_quoted_string".into(), format!(r#""{STRING_BASE}""#));
     /// An English letter (e.g. `m`). Case insensitive.
     pub static ref LETTER: (String, String) = ("letter".into(), r"[A-Za-z]".into());
     /// An English word (e.g. `thread-safe`). Allows non-consecutive hyphens. Case insensitive.
@@ -56,7 +56,7 @@ lazy_static! {
     /// A string enclosed in either single or double quotes.
     pub static ref STRING: (String, String) = (
         "string".into(),
-        format!("\"{STRING_BASE}\"|'{STRING_BASE}'")
+        format!(r#""{STRING_BASE}"|'{STRING_BASE}'"#)
     );
     /// An unsigned number (either an integer or a float).
     pub static ref UNSIGNED_NUMBER: (String, String) =
@@ -126,6 +126,7 @@ mod tests {
                 ("\\'test'", Err(('\\', 0))),
                 ("'\\'test'", Ok(vec!["'\\'test'"])),
                 ("'test\\'", Err(('\'', 0))),
+                ("'test\\ntest'", Ok(vec!["'test\\ntest'"])),
                 ("''", Ok(vec!["''"])),
             ],
         );
@@ -143,6 +144,7 @@ mod tests {
                 ("\\\"test\"", Err(('\\', 0))),
                 (r#""\"test""#, Ok(vec![r#""\"test""#])),
                 ("\"test\\\"", Err(('"', 0))),
+                ("\"test\\ntest\"", Ok(vec!["\"test\\ntest\""])),
                 ("\"\"", Ok(vec!["\"\""])),
             ],
         );
