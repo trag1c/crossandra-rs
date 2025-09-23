@@ -474,7 +474,7 @@ mod tests {
         if let Ok(tokens) = tok.tokenize(",[.,]").collect::<Result<Vec<_>, _>>() {
             assert!(tokens
                 .iter()
-                .map(|t| t.name.clone())
+                .map(|t| t.name)
                 .eq("read begin_loop write read end_loop".split_whitespace()));
         } else {
             panic!();

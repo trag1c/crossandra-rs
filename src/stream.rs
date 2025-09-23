@@ -1,4 +1,4 @@
-use std::{borrow::Cow, str::CharIndices};
+use std::str::CharIndices;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -38,17 +38,15 @@ impl<'a> Core<'a> {
         &self,
         remaining_source: &'a str,
         chunk_size: usize,
-    ) -> Result<(Cow<'a, str>, Cow<'a, str>, usize), char> {
+    ) -> Result<(&'a str, &'a str, usize), char> {
         let mut break_path = None;
         let mut tree = &self.tokenizer.tree;
 
-        let chunk_chars = remaining_source.char_indices().take(chunk_size);
-
-        for (i, v) in chunk_chars {
+        for (i, v) in remaining_source.char_indices().take(chunk_size) {
             let Tree::Node(ref node) = tree else { continue };
 
-            if let Some(t) = node.get(&None) {
-                if let Tree::Leaf(token_name) = t {
+            if let Some(token) = node.get(&None) {
+                if let Tree::Leaf(token_name) = token {
                     break_path = Some((token_name, i));
                 } else {
                     unreachable!("key None can never lead to a Node")
@@ -57,37 +55,36 @@ impl<'a> Core<'a> {
 
             match node.get(&Some(v)) {
                 Some(Tree::Leaf(token_name)) => {
+                    let next_char_index = i + v.len_utf8();
                     return Ok((
-                        Cow::Borrowed(token_name),
-                        Cow::Borrowed(&remaining_source[..=i]),
-                        i + 1,
+                        token_name,
+                        (&remaining_source[..next_char_index]),
+                        next_char_index,
                     ));
                 }
                 Some(new_tree) => tree = new_tree,
                 None => match node.get(&None) {
                     None => break,
                     Some(Tree::Leaf(token_name)) => {
-                        return Ok((
-                            Cow::Borrowed(token_name),
-                            Cow::Borrowed(&remaining_source[..i]),
-                            i,
-                        ));
+                        return Ok(((token_name), (&remaining_source[..i]), i));
                     }
                     _ => unreachable!("key None can never lead to a Node"),
                 },
             }
         }
 
-        let joined_chunk = remaining_source
+        let chunk_length = remaining_source
             .chars()
             .take(chunk_size)
-            .collect::<String>();
-        let joined_chunk_len = joined_chunk.len();
+            .map(char::len_utf8)
+            .sum();
+
+        let chunk = &remaining_source[..chunk_length];
 
         if let Tree::Node(ref node) = tree {
             if let Some(t) = node.get(&None) {
                 if let Tree::Leaf(token_name) = t {
-                    break_path = Some((token_name, joined_chunk_len));
+                    break_path = Some((token_name, chunk_length));
                 } else {
                     unreachable!("key None can never lead to a Node")
                 }
@@ -96,32 +93,21 @@ impl<'a> Core<'a> {
             match node.get(&None) {
                 None => {}
                 Some(Tree::Leaf(token_name)) => {
-                    return Ok((
-                        Cow::Borrowed(token_name),
-                        Cow::Owned(joined_chunk),
-                        joined_chunk_len,
-                    ));
+                    return Ok(((token_name), (chunk), chunk_length));
                 }
                 _ => unreachable!("key None can never lead to a Node"),
             }
         }
 
         if let Some((s, len)) = break_path {
-            return Ok((
-                Cow::Borrowed(s),
-                remaining_source.chars().take(len).collect(),
-                len,
-            ));
+            let bytes = remaining_source.chars().take(len).map(char::len_utf8).sum();
+            return Ok(((s), (&remaining_source[..bytes]), len));
         }
 
-        if let Some(&name) = self.tokenizer.literals.get(joined_chunk.as_str()) {
-            Ok((
-                Cow::Borrowed(name),
-                Cow::Owned(joined_chunk),
-                joined_chunk_len,
-            ))
+        if let Some(&name) = self.tokenizer.literals.get(chunk) {
+            Ok(((name), (chunk), chunk_length))
         } else {
-            Err(joined_chunk
+            Err(remaining_source
                 .chars()
                 .next()
                 .expect("the chunk will never be empty"))
@@ -137,17 +123,20 @@ impl<'a> Iterator for Core<'a> {
             .remaining_source
             .char_indices()
             .find(|(_, c)| !self.ignored.contains(c))?;
+
         self.remaining_source = &self.remaining_source[index..];
+        self.position += index;
+        let start_position = self.position;
 
         let handling_result = self.handle(self.remaining_source, self.chunk_size);
 
         if let Ok((name, value, size)) = handling_result {
             self.remaining_source = &self.remaining_source[size..];
-            self.position += index + size;
+            self.position += size;
             return Some(Ok(Token {
                 name,
                 value,
-                position: self.position - size,
+                position: start_position,
             }));
         }
 
@@ -156,19 +145,19 @@ impl<'a> Iterator for Core<'a> {
                 continue;
             };
             self.remaining_source = &self.remaining_source[tok.end()..];
-            let size = tok.end() - tok.start();
-            self.position += index + size;
+            self.position += tok.end() - tok.start();
             return Some(Ok(Token {
-                name: Cow::Borrowed(name),
-                value: Cow::Borrowed(tok.as_str()),
-                position: self.position - size,
+                name,
+                value: tok.as_str(),
+                position: start_position,
             }));
         }
 
         let char = handling_result.unwrap_err();
-        self.remaining_source = &self.remaining_source[char.len_utf8()..];
-        self.position += 1;
-        Some(Err(Error::BadToken(char, self.position - 1)))
+        let char_bytes = char.len_utf8();
+        self.remaining_source = &self.remaining_source[char_bytes..];
+        self.position += char_bytes;
+        Some(Err(Error::BadToken(char, start_position)))
     }
 }
 
@@ -200,8 +189,8 @@ impl<'a> Iterator for Fast<'a> {
 
         match self.literal_map.get(&char) {
             Some(&name) => Some(Ok(Token {
-                name: Cow::Borrowed(name),
-                value: Cow::Borrowed(&self.source[index..index + char.len_utf8()]),
+                name,
+                value: &self.source[index..index + char.len_utf8()],
                 position: index,
             })),
             None => Some(Err(Error::BadToken(char, index))),

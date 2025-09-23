@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 /// Represents a lexical token with a name/type and its raw value from the source code.
 ///
 /// Used to represent the output of the [`Tokenizer`][crate::Tokenizer] struct.
@@ -16,9 +14,9 @@ use std::borrow::Cow;
 #[derive(Debug, PartialEq, Eq)]
 pub struct Token<'a> {
     /// The type or category of the token (e.g., "int", "identifier", "operator").
-    pub name: Cow<'a, str>,
+    pub name: &'a str,
     /// The actual text/value from the source code that this token represents.
-    pub value: Cow<'a, str>,
+    pub value: &'a str,
     /// The position of the token in the source code.
     /// * For [`Tokenizer::tokenize`], this is the byte offset from the start of the entire source.
     /// * For [`Tokenizer::tokenize_lines`], this is the byte offset from the start of each line.
@@ -31,8 +29,8 @@ pub struct Token<'a> {
 impl<'a> From<(&'a str, &'a str, usize)> for Token<'a> {
     fn from(value: (&'a str, &'a str, usize)) -> Self {
         Token {
-            name: Cow::Borrowed(value.0),
-            value: Cow::Borrowed(value.1),
+            name: value.0,
+            value: value.1,
             position: value.2,
         }
     }
