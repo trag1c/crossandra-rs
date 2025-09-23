@@ -6,6 +6,48 @@ pub(crate) enum Tree<'a> {
     Node(FxHashMap<Option<char>, Tree<'a>>),
 }
 
+impl<'a> Tree<'a> {
+    /// Returns the longest prefix from the Tree that matches the given input
+    ///
+    /// Returns `Some((prefix, leaf_value))` or `None` if no match was found.
+    pub fn match_longest_prefix<'input>(
+        &'a self,
+        input: &'input str,
+    ) -> Option<(&'input str, &'a str)> {
+        let mut current = self;
+        let mut longest_match_end = 0;
+        let mut longest_match_value = None;
+        let mut current_pos = 0;
+        let mut chars = input.chars();
+
+        while let Tree::Node(children) = current {
+            if let Some(Tree::Leaf(value)) = children.get(&None) {
+                // save current match
+                longest_match_end = current_pos;
+                longest_match_value = Some(value);
+            }
+
+            let Some(ch) = chars.next() else {
+                break;
+            };
+
+            let Some(child) = children.get(&Some(ch)) else {
+                break;
+            };
+
+            current = child;
+            current_pos += ch.len_utf8();
+        }
+
+        if let Tree::Leaf(value) = current {
+            return Some((&input[..current_pos], value));
+        }
+
+        // Return longest match found, if any
+        longest_match_value.map(|value| (&input[..longest_match_end], *value))
+    }
+}
+
 pub(crate) fn generate_tree<'a>(literals: &FxHashMap<&'a str, &'a str>) -> Tree<'a> {
     let mut sorted_items: Vec<_> = literals.iter().collect();
     sorted_items.sort_by_key(|(k, _)| std::cmp::Reverse(k.len()));
