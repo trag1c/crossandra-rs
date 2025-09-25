@@ -1,4 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
+
+use criterion::{criterion_group, criterion_main, Criterion};
 use crossandra::{common, Tokenizer};
 
 pub fn samarium(c: &mut Criterion) {
@@ -121,7 +123,12 @@ pub fn samarium(c: &mut Criterion) {
     let dtstripped = include_str!("assets/samarium/dtstripped.sm");
 
     long_group.bench_function("dtstripped.sm", |b| {
-        b.iter(|| black_box(tok.tokenize(black_box(dtstripped)).collect::<Result<Vec<_>, _>>()))
+        b.iter(|| {
+            black_box(
+                tok.tokenize(black_box(dtstripped))
+                    .collect::<Result<Vec<_>, _>>(),
+            )
+        })
     });
 }
 
