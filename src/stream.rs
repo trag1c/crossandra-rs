@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, str::CharIndices};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -172,45 +172,39 @@ impl<'a> Iterator for Core<'a> {
     }
 }
 
-pub(crate) struct Fast<'a, I> {
+pub(crate) struct Fast<'a> {
     literal_map: FxHashMap<char, &'a str>,
     ignored: FxHashSet<char>,
-    chars: I,
-    position: usize,
+    source: &'a str,
+    char_indices: CharIndices<'a>,
 }
 
-impl<'a, I> Fast<'a, I>
-where
-    I: Iterator<Item = char>,
-{
-    pub fn new(tok: &'a Tokenizer<'a>, chars: I, ignored: FxHashSet<char>) -> Self {
+impl<'a> Fast<'a> {
+    pub fn new(tok: &'a Tokenizer<'a>, source: &'a str, ignored: FxHashSet<char>) -> Self {
         Self {
-            chars,
+            source,
+            char_indices: source.char_indices(),
             ignored,
             literal_map: prepare_literal_map(tok),
-            position: 0,
         }
     }
 }
 
-impl<'a, I> Iterator for Fast<'a, I>
-where
-    I: Iterator<Item = char>,
-{
+impl<'a> Iterator for Fast<'a> {
     type Item = Result<Token<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let char = self.chars.find(|c| {
-            self.position += 1;
-            !self.ignored.contains(c)
-        })?;
+        let (index, char) = self
+            .char_indices
+            .find(|&(_, c)| !self.ignored.contains(&c))?;
+
         match self.literal_map.get(&char) {
             Some(&name) => Some(Ok(Token {
                 name: Cow::Borrowed(name),
-                value: Cow::Owned(char.to_string()),
-                position: self.position - 1,
+                value: Cow::Borrowed(&self.source[index..index + char.len_utf8()]),
+                position: index,
             })),
-            None => Some(Err(Error::BadToken(char, self.position - 1))),
+            None => Some(Err(Error::BadToken(char, index))),
         }
     }
 }

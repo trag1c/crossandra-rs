@@ -186,7 +186,7 @@ impl<'a> Tokenizer<'a> {
     ) -> Box<dyn Iterator<Item = Result<Token<'a>, Error>> + 'a> {
         let ignored = self.prepare_ignored();
         if self.can_use_fast_mode() {
-            Box::new(stream::Fast::new(self, source.chars(), ignored))
+            Box::new(stream::Fast::new(self, source, ignored))
         } else {
             Box::new(stream::Core::new(self, source, ignored))
         }
