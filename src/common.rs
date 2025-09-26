@@ -103,7 +103,7 @@ mod tests {
                     let values = tokenizer
                         .tokenize(inp)
                         .map(Result::unwrap)
-                        .map(|token| token.value.clone())
+                        .map(|token| token.value)
                         .collect::<Vec<_>>();
                     assert_eq!(values, expected_values);
                 }
