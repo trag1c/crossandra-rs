@@ -419,7 +419,7 @@ mod tests {
     #[test]
     fn builder_processing_literals() {
         let mut tok = Tokenizer::default();
-        assert_eq!(tok.tree, Tree::Node(FxHashMap::default()));
+        assert_eq!(tok.tree, Tree::new(None, FxHashMap::default()));
 
         assert!(tok.set_literals(&[("a", "b")]).is_ok());
 
