@@ -36,12 +36,30 @@ impl<'a> Tree<'a> {
             .or(longest_match_value)
     }
 
-    #[cfg(test)]
+    /// Creates a new Tree node
+    #[allow(dead_code)]
     pub fn new(value: Option<&'a str>, children: FxHashMap<char, Tree<'a>>) -> Tree<'a> {
         Tree { value, children }
     }
 
-    pub fn leaf(value: &str) -> Tree<'_> {
+    #[allow(dead_code)]
+    pub fn new_value(value: &'a str, children: FxHashMap<char, Tree<'a>>) -> Tree<'a> {
+        Tree {
+            value: Some(value),
+            children,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn new_empty(children: FxHashMap<char, Tree<'a>>) -> Tree<'a> {
+        Tree {
+            value: None,
+            children,
+        }
+    }
+
+    /// Creates a leaf node with the given value
+    pub fn leaf(value: &'a str) -> Tree<'a> {
         Tree {
             value: Some(value),
             children: FxHashMap::default(),
@@ -49,20 +67,17 @@ impl<'a> Tree<'a> {
     }
 }
 
-pub(crate) fn generate_tree<'a>(literals: &FxHashMap<&'a str, &'a str>) -> Tree<'a> {
+pub(crate) fn generate_tree<'a>(literals: &[(&'a str, &'a str)]) -> Tree<'a> {
     let mut sorted_items: Vec<_> = literals.iter().collect();
-    sorted_items.sort_by_key(|(k, _)| std::cmp::Reverse(k.len()));
+    sorted_items.sort_by_key(|(_, literal)| std::cmp::Reverse(literal.len()));
 
-    let mut root = Tree {
-        value: None,
-        children: FxHashMap::default(),
-    };
+    let mut root = Tree::default();
 
-    for (k, v) in sorted_items {
+    for (name, literal) in sorted_items {
         let mut current = &mut root;
 
         // iterate over the characters in the key
-        let mut chars = k.chars().peekable();
+        let mut chars = literal.chars().peekable();
         while let Some(c) = chars.next() {
             let entry = current.children.entry(c);
             // if there is a character after the current character
@@ -74,10 +89,10 @@ pub(crate) fn generate_tree<'a>(literals: &FxHashMap<&'a str, &'a str>) -> Tree<
                 entry
                     // if the current subtree is a node, insert the value as a subtree
                     .and_modify(|inner_tree| {
-                        inner_tree.value = Some(v);
+                        inner_tree.value = Some(name);
                     })
                     // if the current subtree is a node, insert the value as a leaf
-                    .or_insert(Tree::leaf(v));
+                    .or_insert(Tree::leaf(name));
 
                 break; // needed to satisfy the borrow checker
             }
@@ -99,15 +114,21 @@ mod tests {
         }};
     }
 
+    macro_rules! map {
+        { $( $key:expr => $value:expr ),* $(,)? } => {{
+            [$( ($value, $key), )*]
+        }};
+    }
+
     #[test]
     fn empty_tree() {
-        let tree = generate_tree(&hashmap! {});
-        assert_eq!(tree, Tree::new(None, FxHashMap::default()));
+        let tree = generate_tree(&[]);
+        assert_eq!(tree, Tree::default());
     }
 
     #[test]
     fn flat_tree() {
-        let tree = generate_tree(&hashmap! {
+        let tree = generate_tree(&map! {
             "+" => "add",
             "-" => "sub",
             "<" => "left",
@@ -135,332 +156,291 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn basic_nested_tree() {
-    //     let tree = generate_tree(&hashmap! {
-    //         "ABC" => "abc",
-    //         "ACB" => "acb",
-    //         "BAC" => "bac",
-    //         "BCA" => "bca",
-    //         "CAB" => "cab",
-    //         "CBA" => "cba",
-    //     });
-    //
-    //     assert_eq!(
-    //         tree,
-    //         Node(hashmap! {
-    //             Some('A') => Node(hashmap! {
-    //                 Some('B') => Node(hashmap! { Some('C') => Leaf("abc") }),
-    //                 Some('C') => Node(hashmap! { Some('B') => Leaf("acb") })
-    //             }),
-    //             Some('B') => Node(hashmap! {
-    //                 Some('A') => Node(hashmap! { Some('C') => Leaf("bac") }),
-    //                 Some('C') => Node(hashmap! { Some('A') => Leaf("bca") })
-    //             }),
-    //             Some('C') => Node(hashmap! {
-    //                 Some('A') => Node(hashmap! { Some('B') => Leaf("cab") }),
-    //                 Some('B') => Node(hashmap! { Some('A') => Leaf("cba") })
-    //             }),
-    //         })
-    //     );
-    // }
-    //
-    // #[test]
-    // fn break_path_nested_tree() {
-    //     let tree = generate_tree(&hashmap! {
-    //         "ABC" => "x",
-    //         "A" => "y",
-    //         "B" => "z",
-    //     });
-    //
-    //     assert_eq!(
-    //         tree,
-    //         Node(hashmap! {
-    //             Some('A') => Node(hashmap! {
-    //                 Some('B') => Node(hashmap! {
-    //                     Some('C') => Leaf("x")
-    //                 }),
-    //                 None => Leaf("y")
-    //             }),
-    //             Some('B') => Leaf("z")
-    //         })
-    //     );
-    // }
-    //
-    // #[test]
-    // fn same_symbol_tree() {
-    //     let tree = generate_tree(&hashmap! {
-    //         "+" => "a",
-    //         "++" => "b",
-    //         "+++" => "c",
-    //         "++++" => "d",
-    //         "+++++" => "e",
-    //         "++++++" => "f",
-    //     });
-    //
-    //     assert!(matches!(tree, Node { .. }));
-    //
-    //     let expected_tree = Node(hashmap! {
-    //         Some('+') => Node(hashmap! {
-    //             None => Leaf("a"),
-    //             Some('+') => Node(hashmap! {
-    //                 None => Leaf("b"),
-    //                 Some('+') => Node(hashmap! {
-    //                     None => Leaf("c"),
-    //                     Some('+') => Node(hashmap! {
-    //                         None => Leaf("d"),
-    //                         Some('+') => Node(hashmap! {
-    //                             None => Leaf("e"),
-    //                             Some('+') => Leaf("f")
-    //                         })
-    //                     })
-    //                 })
-    //             })
-    //         })
-    //     });
-    //
-    //     assert_eq!(tree, expected_tree);
-    // }
-    //
-    // #[test]
-    // #[allow(clippy::too_many_lines)]
-    // fn samarium_tree() {
-    //     let tree = generate_tree(&hashmap! {
-    //         "+" => "ad",
-    //         "&&" => "an",
-    //         "@@@" => "ar",
-    //         ":" => "as",
-    //         "." => "at",
-    //         "&" => "ba",
-    //         "~" => "bn",
-    //         "|" => "bo",
-    //         "}" => "brace_c",
-    //         "{" => "brace_o",
-    //         "]" => "brack_c",
-    //         "[" => "brack_o",
-    //         "^" => "bx",
-    //         "%" => "cas",
-    //         "!!" => "cat",
-    //         "@" => "cl",
-    //         "@!" => "da",
-    //         "<>" => "de",
-    //         "--" => "di",
-    //         ",," => "e",
-    //         ";" => "end",
-    //         "=>" => "ent",
-    //         "#" => "enu",
-    //         "::" => "eq",
-    //         "=>!" => "ex",
-    //         "&~~>" => "fi_a",
-    //         "&%~>" => "fi_b_a",
-    //         "<~%" => "fi_b_r",
-    //         "<%>" => "fi_b_r_w",
-    //         "%~>" => "fi_b_w",
-    //         "?~>" => "fi_c",
-    //         "&~>" => "fi_q_a",
-    //         "&%>" => "fi_q_b_a",
-    //         "<%" => "fi_q_b_r",
-    //         "%>" => "fi_q_b_w",
-    //         "<~" => "fi_q_r",
-    //         "~>" => "fi_q_w",
-    //         "<~>" => "fi_r_w",
-    //         "<~~" => "fi_r",
-    //         "~~>" => "fi_w",
-    //         "..." => "fo",
-    //         "<-" => "fr",
-    //         "*" => "fu",
-    //         ">:" => "ge",
-    //         ">" => "gt",
-    //         "##" => "h",
-    //         "?" => "if",
-    //         "<=" => "im",
-    //         "->?" => "in",
-    //         "'" => "ins",
-    //         "<:" => "le",
-    //         "<" => "lt",
-    //         "---" => "mo",
-    //         "++" => "mu",
-    //         ":::" => "ne",
-    //         "~~" => "no",
-    //         "||" => "o",
-    //         ")" => "p_c",
-    //         "(" => "p_o",
-    //         "!?" => "pa",
-    //         "+++" => "po",
-    //         "!" => "pr",
-    //         "???" => "r",
-    //         "," => "se",
-    //         ",.," => "sle",
-    //         ">>" => "s_c",
-    //         "<<" => "s_o",
-    //         "$" => "sp",
-    //         "-" => "su",
-    //         "}}" => "t_c",
-    //         "{{" => "t_o",
-    //         "!!!" => "th",
-    //         "->" => "to",
-    //         "??" => "tr",
-    //         "?!" => "ty",
-    //         "@@" => "u",
-    //         ".." => "w",
-    //         "^^" => "x",
-    //         "**" => "y",
-    //         "><" => "z",
-    //     });
-    //
-    //     assert!(matches!(tree, Node { .. }));
-    //
-    //     let expected_tree = Node(hashmap! {
-    //         Some('%') => Node(hashmap! {
-    //             None => Leaf("cas"),
-    //             Some('>') => Leaf("fi_q_b_w"),
-    //             Some('~') => Node(hashmap! { Some('>') => Leaf("fi_b_w") })
-    //         }),
-    //         Some('&') => Node(hashmap! {
-    //             None => Leaf("ba"),
-    //             Some('&') => Leaf("an"),
-    //             Some('~') => Node(hashmap! {
-    //                 Some('~') => Node(hashmap! { Some('>') => Leaf("fi_a") }),
-    //                 Some('>') => Leaf("fi_q_a")
-    //             }),
-    //             Some('%') => Node(hashmap! {
-    //                 Some('>') => Leaf("fi_q_b_a"),
-    //                 Some('~') => Node(hashmap! { Some('>') => Leaf("fi_b_a") })
-    //             })
-    //         }),
-    //         Some('-') => Node(hashmap! {
-    //             None => Leaf("su"),
-    //             Some('>') => Node(hashmap! {
-    //                 Some('?') => Leaf("in"),
-    //                 None => Leaf("to")
-    //             }),
-    //             Some('-') => Node(hashmap! {
-    //                 Some('-') => Leaf("mo"),
-    //                 None => Leaf("di")
-    //             })
-    //         }),
-    //         Some('>') => Node(hashmap! {
-    //             None => Leaf("gt"),
-    //             Some(':') => Leaf("ge"),
-    //             Some('>') => Leaf("s_c"),
-    //             Some('<') => Leaf("z")
-    //         }),
-    //         Some('^') => Node(hashmap! {
-    //             None => Leaf("bx"),
-    //             Some('^') => Leaf("x")
-    //         }),
-    //         Some('$') => Leaf("sp"),
-    //         Some('!') => Node(hashmap! {
-    //             None => Leaf("pr"),
-    //             Some('?') => Leaf("pa"),
-    //             Some('!') => Node(hashmap! {
-    //                 None => Leaf("cat"),
-    //                 Some('!') => Leaf("th")
-    //             })
-    //         }),
-    //         Some('|') => Node(hashmap! {
-    //             None => Leaf("bo"),
-    //             Some('|') => Leaf("o")
-    //         }),
-    //         Some('*') => Node(hashmap! {
-    //             None => Leaf("fu"),
-    //             Some('*') => Leaf("y")
-    //         }),
-    //         Some('(') => Leaf("p_o"),
-    //         Some('<') => Node(hashmap! {
-    //             None => Leaf("lt"),
-    //             Some('-') => Leaf("fr"),
-    //             Some('<') => Leaf("s_o"),
-    //             Some(':') => Leaf("le"),
-    //             Some('>') => Leaf("de"),
-    //             Some('=') => Leaf("im"),
-    //             Some('~') => Node(hashmap! {
-    //                 None => Leaf("fi_q_r"),
-    //                 Some('>') => Leaf("fi_r_w"),
-    //                 Some('%') => Leaf("fi_b_r"),
-    //                 Some('~') => Leaf("fi_r")
-    //             }),
-    //             Some('%') => Node(hashmap! {
-    //                 None => Leaf("fi_q_b_r"),
-    //                 Some('>') => Leaf("fi_b_r_w")
-    //             })
-    //         }),
-    //         Some('@') => Node(hashmap! {
-    //             None => Leaf("cl"),
-    //             Some('!') => Leaf("da"),
-    //             Some('@') => Node(hashmap! {
-    //                 None => Leaf("u"),
-    //                 Some('@') => Leaf("ar")
-    //             })
-    //         }),
-    //         Some('=') => Node(hashmap! {
-    //             Some('>') => Node(hashmap! {
-    //                 None => Leaf("ent"),
-    //                 Some('!') => Leaf("ex")
-    //             })
-    //         }),
-    //         Some('?') => Node(hashmap! {
-    //             None => Leaf("if"),
-    //             Some('!') => Leaf("ty"),
-    //             Some('~') => Node(hashmap! { Some('>') => Leaf("fi_c") }),
-    //             Some('?') => Node(hashmap! {
-    //                 None => Leaf("tr"),
-    //                 Some('?') => Leaf("r")
-    //             })
-    //         }),
-    //         Some('~') => Node(hashmap! {
-    //             None => Leaf("bn"),
-    //             Some('>') => Leaf("fi_q_w"),
-    //             Some('~') => Node(hashmap! {
-    //                 None => Leaf("no"),
-    //                 Some('>') => Leaf("fi_w")
-    //             })
-    //         }),
-    //         Some('{') => Node(hashmap! {
-    //             None => Leaf("brace_o"),
-    //             Some('{') => Leaf("t_o")
-    //         }),
-    //         Some('}') => Node(hashmap! {
-    //             None => Leaf("brace_c"),
-    //             Some('}') => Leaf("t_c")
-    //         }),
-    //         Some('+') => Node(hashmap! {
-    //             None => Leaf("ad"),
-    //             Some('+') => Node(hashmap! {
-    //                 None => Leaf("mu"),
-    //                 Some('+') => Leaf("po")
-    //             })
-    //         }),
-    //         Some(')') => Leaf("p_c"),
-    //         Some(',') => Node(hashmap! {
-    //             None => Leaf("se"),
-    //             Some(',') => Leaf("e"),
-    //             Some('.') => Node(hashmap! { Some(',') => Leaf("sle") })
-    //         }),
-    //         Some('\'') => Leaf("ins"),
-    //         Some(':') => Node(hashmap! {
-    //             None => Leaf("as"),
-    //             Some(':') => Node(hashmap! {
-    //                 None => Leaf("eq"),
-    //                 Some(':') => Leaf("ne")
-    //             })
-    //         }),
-    //         Some('#') => Node(hashmap! {
-    //             None => Leaf("enu"),
-    //             Some('#') => Leaf("h")
-    //         }),
-    //         Some('[') => Leaf("brack_o"),
-    //         Some(';') => Leaf("end"),
-    //         Some(']') => Leaf("brack_c"),
-    //         Some('.') => Node(hashmap! {
-    //             None => Leaf("at"),
-    //             Some('.') => Node(hashmap! {
-    //                 None => Leaf("w"),
-    //                 Some('.') => Leaf("fo")
-    //             })
-    //         })
-    //     });
-    //
-    //     assert_eq!(tree, expected_tree);
-    // }
+    #[test]
+    fn basic_nested_tree() {
+        let tree = generate_tree(&map! {
+            "ABC" => "abc",
+            "ACB" => "acb",
+            "BAC" => "bac",
+            "BCA" => "bca",
+            "CAB" => "cab",
+            "CBA" => "cba",
+        });
+
+        assert_eq!(
+            tree,
+            Tree::new_empty(hashmap! {
+                'A' => Tree::new_empty(hashmap! {
+                    'B' => Tree::new_empty(hashmap! { 'C' => Tree::leaf("abc") }),
+                    'C' => Tree::new_empty(hashmap! { 'B' => Tree::leaf("acb") })
+                }),
+                'B' => Tree::new_empty(hashmap! {
+                    'A' => Tree::new_empty(hashmap! { 'C' => Tree::leaf("bac") }),
+                    'C' => Tree::new_empty(hashmap! { 'A' => Tree::leaf("bca") })
+                }),
+                'C' => Tree::new_empty(hashmap! {
+                    'A' => Tree::new_empty(hashmap! { 'B' => Tree::leaf("cab") }),
+                    'B' => Tree::new_empty(hashmap! { 'A' => Tree::leaf("cba") })
+                }),
+            })
+        );
+    }
+
+    #[test]
+    fn break_path_nested_tree() {
+        let tree = generate_tree(&map! {
+            "ABC" => "x",
+            "A" => "y",
+            "B" => "z",
+        });
+
+        assert_eq!(
+            tree,
+            Tree::new_empty(hashmap! {
+                'A' => Tree::new_value("y", hashmap! {
+                    'B' => Tree::new_empty(hashmap! {
+                        'C' => Tree::leaf("x")
+                    })
+                }),
+                'B' => Tree::leaf("z")
+            })
+        );
+    }
+
+    #[test]
+    fn same_symbol_tree() {
+        let tree = generate_tree(&map! {
+            "+" => "a",
+            "++" => "b",
+            "+++" => "c",
+            "++++" => "d",
+            "+++++" => "e",
+            "++++++" => "f",
+        });
+
+        let expected_tree = Tree::new_empty(hashmap! {
+            '+' => Tree::new_value("a", hashmap! {
+                '+' => Tree::new_value("b", hashmap! {
+                    '+' => Tree::new_value("c", hashmap! {
+                        '+' => Tree::new_value("d", hashmap! {
+                            '+' => Tree::new_value("e", hashmap! {
+                                '+' => Tree::leaf("f")
+                            })
+                        })
+                    })
+                })
+            })
+        });
+
+        assert_eq!(tree, expected_tree);
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn samarium_tree() {
+        let tree = generate_tree(&map! {
+            "+" => "ad",
+            "&&" => "an",
+            "@@@" => "ar",
+            ":" => "as",
+            "." => "at",
+            "&" => "ba",
+            "~" => "bn",
+            "|" => "bo",
+            "}" => "brace_c",
+            "{" => "brace_o",
+            "]" => "brack_c",
+            "[" => "brack_o",
+            "^" => "bx",
+            "%" => "cas",
+            "!!" => "cat",
+            "@" => "cl",
+            "@!" => "da",
+            "<>" => "de",
+            "--" => "di",
+            ",," => "e",
+            ";" => "end",
+            "=>" => "ent",
+            "#" => "enu",
+            "::" => "eq",
+            "=>!" => "ex",
+            "&~~>" => "fi_a",
+            "&%~>" => "fi_b_a",
+            "<~%" => "fi_b_r",
+            "<%>" => "fi_b_r_w",
+            "%~>" => "fi_b_w",
+            "?~>" => "fi_c",
+            "&~>" => "fi_q_a",
+            "&%>" => "fi_q_b_a",
+            "<%" => "fi_q_b_r",
+            "%>" => "fi_q_b_w",
+            "<~" => "fi_q_r",
+            "~>" => "fi_q_w",
+            "<~>" => "fi_r_w",
+            "<~~" => "fi_r",
+            "~~>" => "fi_w",
+            "..." => "fo",
+            "<-" => "fr",
+            "*" => "fu",
+            ">:" => "ge",
+            ">" => "gt",
+            "##" => "h",
+            "?" => "if",
+            "<=" => "im",
+            "->?" => "in",
+            "'" => "ins",
+            "<:" => "le",
+            "<" => "lt",
+            "---" => "mo",
+            "++" => "mu",
+            ":::" => "ne",
+            "~~" => "no",
+            "||" => "o",
+            ")" => "p_c",
+            "(" => "p_o",
+            "!?" => "pa",
+            "+++" => "po",
+            "!" => "pr",
+            "???" => "r",
+            "," => "se",
+            ",.," => "sle",
+            ">>" => "s_c",
+            "<<" => "s_o",
+            "$" => "sp",
+            "-" => "su",
+            "}}" => "t_c",
+            "{{" => "t_o",
+            "!!!" => "th",
+            "->" => "to",
+            "??" => "tr",
+            "?!" => "ty",
+            "@@" => "u",
+            ".." => "w",
+            "^^" => "x",
+            "**" => "y",
+            "><" => "z",
+        });
+
+        let expected_tree = Tree::new_empty(hashmap! {
+            '%' => Tree::new_value("cas", hashmap! {
+                '>' => Tree::leaf("fi_q_b_w"),
+                '~' => Tree::new_empty(hashmap! { '>' => Tree::leaf("fi_b_w") })
+            }),
+            '&' => Tree::new_value("ba", hashmap! {
+                '&' => Tree::leaf("an"),
+                '~' => Tree::new_empty(hashmap! {
+                    '~' => Tree::new_empty(hashmap! { '>' => Tree::leaf("fi_a") }),
+                    '>' => Tree::leaf("fi_q_a")
+                }),
+                '%' => Tree::new_empty(hashmap! {
+                    '>' => Tree::leaf("fi_q_b_a"),
+                    '~' => Tree::new_empty(hashmap! { '>' => Tree::leaf("fi_b_a") })
+                })
+            }),
+            '-' => Tree::new_value("su", hashmap! {
+                '>' => Tree::new_value("to", hashmap! {
+                    '?' => Tree::leaf("in")
+                }),
+                '-' => Tree::new_value("di", hashmap! {
+                    '-' => Tree::leaf("mo")
+                })
+            }),
+            '>' => Tree::new_value("gt", hashmap! {
+                ':' => Tree::leaf("ge"),
+                '>' => Tree::leaf("s_c"),
+                '<' => Tree::leaf("z")
+            }),
+            '^' => Tree::new_value("bx", hashmap! {
+                '^' => Tree::leaf("x")
+            }),
+            '$' => Tree::leaf("sp"),
+            '!' => Tree::new_value("pr", hashmap! {
+                '?' => Tree::leaf("pa"),
+                '!' => Tree::new_value("cat", hashmap! {
+                    '!' => Tree::leaf("th")
+                })
+            }),
+            '|' => Tree::new_value("bo", hashmap! {
+                '|' => Tree::leaf("o")
+            }),
+            '*' => Tree::new_value("fu", hashmap! {
+                '*' => Tree::leaf("y")
+            }),
+            '(' => Tree::leaf("p_o"),
+            '<' => Tree::new_value("lt", hashmap! {
+                '-' => Tree::leaf("fr"),
+                '<' => Tree::leaf("s_o"),
+                ':' => Tree::leaf("le"),
+                '>' => Tree::leaf("de"),
+                '=' => Tree::leaf("im"),
+                '~' => Tree::new_value("fi_q_r", hashmap! {
+                    '>' => Tree::leaf("fi_r_w"),
+                    '%' => Tree::leaf("fi_b_r"),
+                    '~' => Tree::leaf("fi_r")
+                }),
+                '%' => Tree::new_value("fi_q_b_r", hashmap! {
+                    '>' => Tree::leaf("fi_b_r_w")
+                })
+            }),
+            '@' => Tree::new_value("cl", hashmap! {
+                '!' => Tree::leaf("da"),
+                '@' => Tree::new_value("u", hashmap! {
+                    '@' => Tree::leaf("ar")
+                })
+            }),
+            '=' => Tree::new_empty(hashmap! {
+                '>' => Tree::new_value("ent", hashmap! {
+                    '!' => Tree::leaf("ex")
+                })
+            }),
+            '?' => Tree::new_value("if", hashmap! {
+                '!' => Tree::leaf("ty"),
+                '~' => Tree::new_empty(hashmap! { '>' => Tree::leaf("fi_c") }),
+                '?' => Tree::new_value("tr", hashmap! {
+                    '?' => Tree::leaf("r")
+                })
+            }),
+            '~' => Tree::new_value("bn", hashmap! {
+                '>' => Tree::leaf("fi_q_w"),
+                '~' => Tree::new_value("no", hashmap! {
+                    '>' => Tree::leaf("fi_w")
+                })
+            }),
+            '{' => Tree::new_value("brace_o", hashmap! {
+                '{' => Tree::leaf("t_o")
+            }),
+            '}' => Tree::new_value("brace_c", hashmap! {
+                '}' => Tree::leaf("t_c")
+            }),
+            '+' => Tree::new_value("ad", hashmap! {
+                '+' => Tree::new_value("mu", hashmap! {
+                    '+' => Tree::leaf("po")
+                })
+            }),
+            ')' => Tree::leaf("p_c"),
+            ',' => Tree::new_value("se", hashmap! {
+                ',' => Tree::leaf("e"),
+                '.' => Tree::new_empty(hashmap! { ',' => Tree::leaf("sle") })
+            }),
+            '\'' => Tree::leaf("ins"),
+            ':' => Tree::new_value("as", hashmap! {
+                ':' => Tree::new_value("eq", hashmap! {
+                    ':' => Tree::leaf("ne")
+                })
+            }),
+            '#' => Tree::new_value("enu", hashmap! {
+                '#' => Tree::leaf("h")
+            }),
+            '[' => Tree::leaf("brack_o"),
+            ';' => Tree::leaf("end"),
+            ']' => Tree::leaf("brack_c"),
+            '.' => Tree::new_value("at", hashmap! {
+                '.' => Tree::new_value("w", hashmap! {
+                    '.' => Tree::leaf("fo")
+                })
+            })
+        });
+
+        assert_eq!(tree, expected_tree);
+    }
 }

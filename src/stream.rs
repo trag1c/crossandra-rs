@@ -5,14 +5,10 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{error::Error, Token, Tokenizer};
 
-pub(crate) fn build_hashmap<'a>(hm: &[(&'a str, &'a str)]) -> FxHashMap<&'a str, &'a str> {
-    hm.iter().map(|(k, v)| (*v, *k)).collect()
-}
-
 fn prepare_literal_map<'a>(tok: &'a Tokenizer) -> FxHashMap<char, &'a str> {
     tok.literals
         .iter()
-        .map(|(&k, &v)| (k.chars().next().expect("all literals should be 1-long"), v))
+        .map(|(v, k)| (k.chars().next().expect("all literals should be 1-long"), *v))
         .collect()
 }
 
@@ -146,15 +142,6 @@ impl<'a> Iterator for Fast<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn flip_hashmap_ok() {
-        assert_eq!(build_hashmap(&[]), FxHashMap::default());
-        assert_eq!(
-            build_hashmap(&[("a", "b"), ("c", "d")]),
-            FxHashMap::from_iter([("b", "a"), ("d", "c")])
-        );
-    }
 
     #[test]
     fn literal_map_preparation() {
