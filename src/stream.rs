@@ -1,5 +1,6 @@
 use std::str::CharIndices;
 
+use fancy_regex::Regex;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{error::Error, Token, Tokenizer};
@@ -32,17 +33,26 @@ impl<'a> Core<'a> {
         }
     }
 
-    fn handle(&self, remaining_source: &'a str) -> Result<(&'a str, &'a str, usize), char> {
+    fn try_match_literals(&self) -> Option<(&'a str, &'a str)> {
         self.tokenizer
             .tree
-            .match_longest_prefix(remaining_source)
-            .map(|(prefix, name)| (name, prefix, prefix.len()))
-            .ok_or_else(|| {
-                remaining_source
-                    .chars()
-                    .next()
-                    .expect("the chunk will never be empty")
-            })
+            .match_longest_prefix(self.remaining_source)
+            .map(|(prefix, name)| (name, prefix))
+    }
+
+    fn try_match(&self, name: &'a str, pattern: &Regex) -> Option<(&'a str, &'a str)> {
+        pattern
+            .find(self.remaining_source)
+            .ok()
+            .flatten()
+            .map(|tok| (name, tok.as_str()))
+    }
+
+    fn try_match_patterns(&self) -> Option<(&'a str, &'a str)> {
+        self.tokenizer
+            .patterns
+            .iter()
+            .find_map(|(name, pattern)| self.try_match(name, pattern))
     }
 }
 
@@ -50,6 +60,7 @@ impl<'a> Iterator for Core<'a> {
     type Item = Result<Token<'a>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Skip ignored characters
         let (index, _) = self
             .remaining_source
             .char_indices()
@@ -57,38 +68,41 @@ impl<'a> Iterator for Core<'a> {
 
         self.remaining_source = &self.remaining_source[index..];
         self.position += index;
-        let start_position = self.position;
 
-        let handling_result = self.handle(self.remaining_source);
+        // Try to match tokens
+        let matching_result = self
+            .try_match_literals()
+            .or_else(|| self.try_match_patterns());
 
-        if let Ok((name, value, size)) = handling_result {
-            self.remaining_source = &self.remaining_source[size..];
-            self.position += size;
-            return Some(Ok(Token {
-                name,
-                value,
-                position: start_position,
-            }));
-        }
+        let (result, step) = matching_result.map_or_else(
+            || {
+                let next_char = self
+                    .remaining_source
+                    .chars()
+                    .next()
+                    .expect("the chunk will never be empty");
 
-        for (name, pattern) in &self.tokenizer.patterns {
-            let Ok(Some(tok)) = pattern.find(self.remaining_source) else {
-                continue;
-            };
-            self.remaining_source = &self.remaining_source[tok.end()..];
-            self.position += tok.end() - tok.start();
-            return Some(Ok(Token {
-                name,
-                value: tok.as_str(),
-                position: start_position,
-            }));
-        }
+                (
+                    Err(Error::BadToken(next_char, self.position)),
+                    next_char.len_utf8(),
+                )
+            },
+            |(name, value)| {
+                (
+                    Ok(Token {
+                        name,
+                        value,
+                        position: self.position,
+                    }),
+                    value.len(),
+                )
+            },
+        );
 
-        let char = handling_result.unwrap_err();
-        let char_bytes = char.len_utf8();
-        self.remaining_source = &self.remaining_source[char_bytes..];
-        self.position += char_bytes;
-        Some(Err(Error::BadToken(char, start_position)))
+        self.remaining_source = &self.remaining_source[step..];
+        self.position += step;
+
+        Some(result)
     }
 }
 
