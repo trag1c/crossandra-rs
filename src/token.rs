@@ -26,6 +26,12 @@ pub struct Token<'a> {
     pub position: usize,
 }
 
+impl std::fmt::Display for Token<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<{}, {:?}: {:?}>", self.position, self.name, self.value)
+    }
+}
+
 impl<'a> From<(&'a str, &'a str, usize)> for Token<'a> {
     fn from(value: (&'a str, &'a str, usize)) -> Self {
         Token {
