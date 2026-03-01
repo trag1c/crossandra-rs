@@ -4,7 +4,6 @@
 //! ## [Brainfuck](https://en.wikipedia.org/wiki/Brainfuck)
 //! ```rust
 //! use crossandra::Tokenizer;
-//! use rustc_hash::FxHashMap;
 //!
 //! # fn main() {
 //! let bf_tok = Tokenizer::default()
