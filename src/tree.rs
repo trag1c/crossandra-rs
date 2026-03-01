@@ -18,7 +18,7 @@ pub(crate) fn generate_tree<'a>(literals: &FxHashMap<&'a str, &'a str>) -> Tree<
         // iterate over the characters in the key
         let mut chars = k.chars().peekable();
         while let Some(c) = chars.next() {
-            let Tree::Node(ref mut map) = current else {
+            let Tree::Node(map) = current else {
                 continue;
             };
 
@@ -53,8 +53,8 @@ mod tests {
     use rustc_hash::FxHashMap;
 
     use super::{
-        generate_tree,
         Tree::{Leaf, Node},
+        generate_tree,
     };
 
     macro_rules! hashmap {

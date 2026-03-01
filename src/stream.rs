@@ -2,7 +2,7 @@ use std::str::CharIndices;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::{error::Error, tree::Tree, Token, Tokenizer};
+use crate::{Token, Tokenizer, error::Error, tree::Tree};
 
 pub(crate) fn build_hashmap<'a>(hm: &[(&'a str, &'a str)]) -> FxHashMap<&'a str, &'a str> {
     hm.iter().map(|(k, v)| (*v, *k)).collect()
@@ -43,7 +43,7 @@ impl<'a> Core<'a> {
         let mut tree = &self.tokenizer.tree;
 
         for (i, v) in remaining_source.char_indices().take(chunk_size) {
-            let Tree::Node(ref node) = tree else { continue };
+            let Tree::Node(node) = tree else { continue };
 
             if let Some(token) = node.get(&None) {
                 if let Tree::Leaf(token_name) = token {
@@ -51,7 +51,7 @@ impl<'a> Core<'a> {
                 } else {
                     unreachable!("key None can never lead to a Node")
                 }
-            };
+            }
 
             match node.get(&Some(v)) {
                 Some(Tree::Leaf(token_name)) => {
@@ -81,14 +81,14 @@ impl<'a> Core<'a> {
 
         let chunk = &remaining_source[..chunk_length];
 
-        if let Tree::Node(ref node) = tree {
+        if let Tree::Node(node) = tree {
             if let Some(t) = node.get(&None) {
                 if let Tree::Leaf(token_name) = t {
                     break_path = Some((token_name, chunk_length));
                 } else {
                     unreachable!("key None can never lead to a Node")
                 }
-            };
+            }
 
             match node.get(&None) {
                 None => {}

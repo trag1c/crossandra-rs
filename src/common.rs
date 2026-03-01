@@ -79,7 +79,7 @@ lazy_static! {
 
 #[cfg(test)]
 mod tests {
-    use crate::{common, error::Error, Tokenizer};
+    use crate::{Tokenizer, common, error::Error};
 
     fn prepare_tokenizer<'a>(pattern: (String, String)) -> Tokenizer<'a> {
         Tokenizer::default()
