@@ -1,6 +1,6 @@
 [package]
 name = "crossandra"
-version = "0.1.0"
+version = "1.0.0"
 description = "A straightforward tokenization library for seamless text processing."
 authors = ["trag1c <trag1cdev@yahoo.com>"]
 license = "MIT"
