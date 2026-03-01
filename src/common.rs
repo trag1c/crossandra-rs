@@ -1,5 +1,14 @@
 //! A collection of common patterns for use in tokenizers.
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
+
+macro_rules! lazy {
+    {$($(#[doc = $doc:literal])* $name:ident = $pattern:expr;)*} => {
+        $($(#[doc = $doc])*
+        pub static $name: LazyLock<(String, String)> =
+            LazyLock::new(|| (stringify!($name).to_lowercase(), $pattern));
+        )*
+    };
+}
 
 const STRING_BASE: &str = r"(?:\\.|[^\\])*?";
 const INT_BASE: &str = r"[0-9](?:[0-9_]*[0-9])?";
@@ -16,65 +25,48 @@ const FLOAT_BASE: &str = concat!(
     r"(?:[eE][+\-]?[0-9](?:[0-9_]*[0-9])?)?"  // exponent (optional)
 );
 
-lazy_static! {
+lazy! {
     /// A single character enclosed in single quotes (e.g. `'h'`).
-    pub static ref CHAR: (String, String) = ("char".into(), r"'(?:\\'|[^'])'".into());
+    CHAR = r"'(?:\\'|[^'])'".into();
     /// A string enclosed in single quotes (e.g. `'nice fish'`).
-    pub static ref SINGLE_QUOTED_STRING: (String, String) =
-        ("single_quoted_string".into(), format!("'{STRING_BASE}'"));
+    SINGLE_QUOTED_STRING = format!("'{STRING_BASE}'");
     /// A string enclosed in double quotes (e.g. `"hello there"`).
-    pub static ref DOUBLE_QUOTED_STRING: (String, String) =
-        ("double_quoted_string".into(), format!(r#""{STRING_BASE}""#));
+    DOUBLE_QUOTED_STRING = format!(r#""{STRING_BASE}""#);
     /// An English letter (e.g. `m`). Case insensitive.
-    pub static ref LETTER: (String, String) = ("letter".into(), r"[A-Za-z]".into());
+    LETTER = r"[A-Za-z]".into();
     /// An English word (e.g. `thread-safe`). Allows non-consecutive hyphens. Case insensitive.
-    pub static ref WORD: (String, String) = ("word".into(), r"[A-Za-z]+(-[A-Za-z]+)*".into());
+    WORD = r"[A-Za-z]+(-[A-Za-z]+)*".into();
     /// A C-like variable name (e.g. `crossandra_rocks`). Can consist of
     /// English letters, digits, and underscores. Cannot start with a digit.
-    pub static ref C_NAME: (String, String) = ("c_name".into(), r"[_A-Za-z][_A-Za-z\d]*".into());
+    C_NAME = r"[_A-Za-z][_A-Za-z\d]*".into();
     /// A newline (either `\n` or `\r\n`).
-    pub static ref NEWLINE: (String, String) = ("newline".into(), r"\r?\n".into());
+    NEWLINE = r"\r?\n".into();
     /// A single digit (e.g. `7`).
-    pub static ref DIGIT: (String, String) = ("digit".into(), r"[0-9]".into());
+    DIGIT = r"[0-9]".into();
     /// A single hexadecimal digit (e.g. `c`). Case insensitive.
-    pub static ref HEXDIGIT: (String, String) = ("hexdigit".into(), r"[0-9A-Fa-f]".into());
+    HEXDIGIT = r"[0-9A-Fa-f]".into();
     /// An unsigned integer (e.g. `2_137`). Underscores can be used as separators.
-    pub static ref UNSIGNED_INT: (String, String) = ("unsigned_int".into(), INT_BASE.into());
+    UNSIGNED_INT = INT_BASE.into();
     /// A signed integer (e.g. `-1`). Underscores can be used as separators.
-    pub static ref SIGNED_INT: (String, String) =
-        ("signed_int".into(), format!(r"[+\-]{INT_BASE}"));
+    SIGNED_INT = format!(r"[+\-]{INT_BASE}");
     /// A decimal value (e.g. `3.14`).
-    pub static ref DECIMAL: (String, String) = (
-        "decimal".into(),
-        format!(r"{INT_BASE}\.(?:{INT_BASE})?|\.{INT_BASE}")
-    );
+    DECIMAL = format!(r"{INT_BASE}\.(?:{INT_BASE})?|\.{INT_BASE}");
     /// An unsigned floating point value (e.g. `1e3`).
-    pub static ref UNSIGNED_FLOAT: (String, String) = ("unsigned_float".into(), FLOAT_BASE.into());
+    UNSIGNED_FLOAT = FLOAT_BASE.into();
     /// A signed floating point value (e.g. `+4.3`).
-    pub static ref SIGNED_FLOAT: (String, String) =
-        ("signed_float".into(), format!(r"[+\-](?:{FLOAT_BASE})"));
+    SIGNED_FLOAT = format!(r"[+\-](?:{FLOAT_BASE})");
     /// A string enclosed in either single or double quotes.
-    pub static ref STRING: (String, String) = (
-        "string".into(),
-        format!(r#""{STRING_BASE}"|'{STRING_BASE}'"#)
-    );
+    STRING = format!(r#""{STRING_BASE}"|'{STRING_BASE}'"#);
     /// An unsigned number (either an integer or a float).
-    pub static ref UNSIGNED_NUMBER: (String, String) =
-        ("unsigned_number".into(), format!("{FLOAT_BASE}|{INT_BASE}"));
+    UNSIGNED_NUMBER = format!("{FLOAT_BASE}|{INT_BASE}");
     /// A signed number (either an integer or a floating point value).
-    pub static ref SIGNED_NUMBER: (String, String) = (
-        "signed_number".into(),
-        format!(r"[+\-](?:(?:{FLOAT_BASE})|{INT_BASE})")
-    );
+    SIGNED_NUMBER = format!(r"[+\-](?:(?:{FLOAT_BASE})|{INT_BASE})");
     /// Any integer value (optional sign).
-    pub static ref INT: (String, String) = ("int".into(), format!(r"[+\-]?{INT_BASE}"));
+    INT = format!(r"[+\-]?{INT_BASE}");
     /// Any floating point value (optional sign).
-    pub static ref FLOAT: (String, String) = ("float".into(), format!(r"[+\-]?(?:{FLOAT_BASE})"));
+    FLOAT = format!(r"[+\-]?(?:{FLOAT_BASE})");
     /// Any number (optional sign).
-    pub static ref NUMBER: (String, String) = (
-        "number".into(),
-        format!(r"[+\-]?(?:(?:{FLOAT_BASE})|{INT_BASE})")
-    );
+    NUMBER = format!(r"[+\-]?(?:(?:{FLOAT_BASE})|{INT_BASE})");
 }
 
 #[cfg(test)]

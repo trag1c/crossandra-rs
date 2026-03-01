@@ -9,7 +9,6 @@ edition = "2024"
 
 [dependencies]
 fancy-regex = "0.16.2"
-lazy_static = "1.5.0"
 rayon = "1.10.0"
 rustc-hash = "2.1.0"
 
