@@ -2,7 +2,7 @@
 name = "crossandra"
 version = "1.0.0"
 description = "A straightforward tokenization library for seamless text processing."
-authors = ["trag1c <trag1cdev@yahoo.com>"]
+authors = ["trag1c <dev@jakubr.me>"]
 license = "MIT"
 repository = "https://github.com/trag1c/crossandra-rs"
 edition = "2024"
