@@ -1,12 +1,11 @@
 # crossandra-rs
-`crossandra-rs` is a work-in-progress ⚠️, straightforward tokenization library for seamless text
-processing. A simplified Rust implementation of the Python [Crossandra] library.
+`crossandra-rs` is a fast and simple lexical tokenization library.
 
 ## Usage
 Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-crossandra = "0.0.1"
+crossandra = "1.0.0"
 ```
 
 Import and use like this:
@@ -15,13 +14,13 @@ use crossandra::{Tokenizer, common};
 
 fn main() {
     let word_finder = Tokenizer::default()
-        .with_patterns(vec![common::WORD.clone()])
+        .with_patterns(&[common::WORD.clone()])
         .expect("built-in pattern should be safe");
 
     let text = "Hello, world!";
 
     for token in word_finder.tokenize(text).flatten() {
-        println!("{:?}", token);
+        println!("{token:?}");
     }
     // Token { name: "word", value: "Hello", position: 0}
     // Token { name: "word", value: "world", position: 7}
