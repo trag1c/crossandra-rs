@@ -4,9 +4,15 @@ use std::sync::LazyLock;
 macro_rules! lazy {
     {$($(#[doc = $doc:literal])* $name:ident = $pattern:expr;)*} => {
         $($(#[doc = $doc])*
-        pub static $name: LazyLock<(String, String)> =
-            LazyLock::new(|| (stringify!($name).to_lowercase(), $pattern));
+        pub static $name: LazyLock<(&'static str, &'static str)> =
+            LazyLock::new(|| (Box::leak(stringify!($name).to_lowercase().into_boxed_str()), $pattern));
         )*
+    };
+}
+
+macro_rules! format_str {
+    ($str:expr) => {
+        Box::leak(format!($str).into_boxed_str())
     };
 }
 
@@ -27,55 +33,55 @@ const FLOAT_BASE: &str = concat!(
 
 lazy! {
     /// A single character enclosed in single quotes (e.g. `'h'`).
-    CHAR = r"'(?:\\'|[^'])'".into();
+    CHAR = r"'(?:\\'|[^'])'";
     /// A string enclosed in single quotes (e.g. `'nice fish'`).
-    SINGLE_QUOTED_STRING = format!("'{STRING_BASE}'");
+    SINGLE_QUOTED_STRING = format_str!("'{STRING_BASE}'");
     /// A string enclosed in double quotes (e.g. `"hello there"`).
-    DOUBLE_QUOTED_STRING = format!(r#""{STRING_BASE}""#);
+    DOUBLE_QUOTED_STRING = format_str!(r#""{STRING_BASE}""#);
     /// An English letter (e.g. `m`). Case insensitive.
-    LETTER = r"[A-Za-z]".into();
+    LETTER = r"[A-Za-z]";
     /// An English word (e.g. `thread-safe`). Allows non-consecutive hyphens. Case insensitive.
-    WORD = r"[A-Za-z]+(-[A-Za-z]+)*".into();
+    WORD = r"[A-Za-z]+(-[A-Za-z]+)*";
     /// A C-like variable name (e.g. `crossandra_rocks`). Can consist of
     /// English letters, digits, and underscores. Cannot start with a digit.
-    C_NAME = r"[_A-Za-z][_A-Za-z\d]*".into();
+    C_NAME = r"[_A-Za-z][_A-Za-z\d]*";
     /// A newline (either `\n` or `\r\n`).
-    NEWLINE = r"\r?\n".into();
+    NEWLINE = r"\r?\n";
     /// A single digit (e.g. `7`).
-    DIGIT = r"[0-9]".into();
+    DIGIT = r"[0-9]";
     /// A single hexadecimal digit (e.g. `c`). Case insensitive.
-    HEXDIGIT = r"[0-9A-Fa-f]".into();
+    HEXDIGIT = r"[0-9A-Fa-f]";
     /// An unsigned integer (e.g. `2_137`). Underscores can be used as separators.
-    UNSIGNED_INT = INT_BASE.into();
+    UNSIGNED_INT = INT_BASE;
     /// A signed integer (e.g. `-1`). Underscores can be used as separators.
-    SIGNED_INT = format!(r"[+\-]{INT_BASE}");
+    SIGNED_INT = format_str!(r"[+\-]{INT_BASE}");
     /// A decimal value (e.g. `3.14`).
-    DECIMAL = format!(r"{INT_BASE}\.(?:{INT_BASE})?|\.{INT_BASE}");
+    DECIMAL = format_str!(r"{INT_BASE}\.(?:{INT_BASE})?|\.{INT_BASE}");
     /// An unsigned floating point value (e.g. `1e3`).
-    UNSIGNED_FLOAT = FLOAT_BASE.into();
+    UNSIGNED_FLOAT = FLOAT_BASE;
     /// A signed floating point value (e.g. `+4.3`).
-    SIGNED_FLOAT = format!(r"[+\-](?:{FLOAT_BASE})");
+    SIGNED_FLOAT = format_str!(r"[+\-](?:{FLOAT_BASE})");
     /// A string enclosed in either single or double quotes.
-    STRING = format!(r#""{STRING_BASE}"|'{STRING_BASE}'"#);
+    STRING = format_str!(r#""{STRING_BASE}"|'{STRING_BASE}'"#);
     /// An unsigned number (either an integer or a float).
-    UNSIGNED_NUMBER = format!("{FLOAT_BASE}|{INT_BASE}");
+    UNSIGNED_NUMBER = format_str!("{FLOAT_BASE}|{INT_BASE}");
     /// A signed number (either an integer or a floating point value).
-    SIGNED_NUMBER = format!(r"[+\-](?:(?:{FLOAT_BASE})|{INT_BASE})");
+    SIGNED_NUMBER = format_str!(r"[+\-](?:(?:{FLOAT_BASE})|{INT_BASE})");
     /// Any integer value (optional sign).
-    INT = format!(r"[+\-]?{INT_BASE}");
+    INT = format_str!(r"[+\-]?{INT_BASE}");
     /// Any floating point value (optional sign).
-    FLOAT = format!(r"[+\-]?(?:{FLOAT_BASE})");
+    FLOAT = format_str!(r"[+\-]?(?:{FLOAT_BASE})");
     /// Any number (optional sign).
-    NUMBER = format!(r"[+\-]?(?:(?:{FLOAT_BASE})|{INT_BASE})");
+    NUMBER = format_str!(r"[+\-]?(?:(?:{FLOAT_BASE})|{INT_BASE})");
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{Tokenizer, common, error::Error};
 
-    fn prepare_tokenizer<'a>(pattern: (String, String)) -> Tokenizer<'a> {
+    fn prepare_tokenizer<'a>(pattern: (&'static str, &'static str)) -> Tokenizer<'a> {
         Tokenizer::default()
-            .with_patterns(vec![pattern])
+            .with_patterns(&[pattern])
             .expect("the pattern should be valid")
     }
 

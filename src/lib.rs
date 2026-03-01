@@ -41,7 +41,7 @@ mod token;
 pub use token::Token;
 
 mod tree;
-use tree::{generate_tree, Tree};
+use tree::{Tree, generate_tree};
 
 mod patterns;
 
@@ -79,12 +79,12 @@ const WHITESPACE: [char; 6] = [' ', '\x0c', '\t', '\x0b', '\r', '\n'];
 /// binary, octal, and hexadecimal literals could be defined like this:
 /// ```rust
 /// # use crossandra::Tokenizer;
-/// let patterns = vec![
-///     ("binary".into(), r"0[bB][01]+".into()),
-///     ("octal".into(), r"0[Oo][0-7]+".into()),
-///     ("hexadecimal".into(), r"(?i)0x[0-9a-f]+".into()),
+/// let patterns = [
+///     ("binary", r"0[bB][01]+"),
+///     ("octal", r"0[Oo][0-7]+"),
+///     ("hexadecimal", r"(?i)0x[0-9a-f]+"),
 /// ];
-/// # assert!(Tokenizer::default().with_patterns(patterns).is_ok());
+/// # assert!(Tokenizer::default().with_patterns(&patterns).is_ok());
 /// ```
 ///
 /// ## Other options
@@ -117,7 +117,7 @@ const WHITESPACE: [char; 6] = [' ', '\x0c', '\t', '\x0b', '\r', '\n'];
 #[derive(Debug, Clone)]
 pub struct Tokenizer<'a> {
     literals: FxHashMap<&'a str, &'a str>,
-    patterns: Vec<(String, Regex)>,
+    patterns: Vec<(&'a str, Regex)>,
     ignore_whitespace: bool,
     ignored_characters: FxHashSet<char>,
     tree: Tree<'a>,
@@ -150,7 +150,7 @@ impl<'a> Tokenizer<'a> {
     /// * any [pattern](Tokenizer#patterns) regex is invalid.
     pub fn new(
         literals: &[(&'a str, &'a str)],
-        patterns: Vec<(String, String)>,
+        patterns: &[(&'a str, &'a str)],
         ignored_characters: FxHashSet<char>,
         ignore_whitespace: bool,
     ) -> Result<Self, Error> {
@@ -224,7 +224,7 @@ impl<'a> Tokenizer<'a> {
     /// This function will return an error if:
     /// * there are duplicate patterns, or
     /// * any pattern regex is invalid.
-    pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, Error> {
+    pub fn with_patterns(mut self, patterns: &[(&'a str, &'a str)]) -> Result<Self, Error> {
         self.set_patterns(patterns)?;
         Ok(self)
     }
@@ -264,7 +264,7 @@ impl<'a> Tokenizer<'a> {
     /// This function will return an error if:
     /// * there are duplicate patterns, or
     /// * any pattern regex is invalid.
-    pub fn set_patterns(&mut self, patterns: Vec<(String, String)>) -> Result<(), Error> {
+    pub fn set_patterns(&mut self, patterns: &[(&'a str, &'a str)]) -> Result<(), Error> {
         self.patterns = patterns::prepare(patterns)?;
         Ok(())
     }
@@ -282,7 +282,7 @@ impl<'a> Tokenizer<'a> {
 
 impl Default for Tokenizer<'_> {
     fn default() -> Self {
-        Self::new(&[], Vec::new(), FxHashSet::default(), false)
+        Self::new(&[], &[], FxHashSet::default(), false)
             .expect("an empty tokenizer should be correct")
     }
 }
@@ -314,12 +314,12 @@ mod tests {
 
     #[test]
     fn fast_mode() {
-        let tests: [(&[_], Vec<_>, bool); 5] = [
-            (&[], Vec::new(), true),
-            (&[], vec![(String::new(), String::new())], false),
-            (&[("", "a")], Vec::new(), true),
-            (&[], Vec::new(), true),
-            (&[("", "a"), ("", "b"), ("", "c!")], Vec::new(), false),
+        let tests: [(&[_], &[_], bool); 5] = [
+            (&[], &[], true),
+            (&[], &[("", "")], false),
+            (&[("", "a")], &[], true),
+            (&[], &[], true),
+            (&[("", "a"), ("", "b"), ("", "c!")], &[], false),
         ];
         for (literals, patterns, expected) in tests {
             assert_eq!(
@@ -383,33 +383,31 @@ mod tests {
         );
         assert_ne!(
             def,
-            Tokenizer::default()
-                .with_patterns([("1".into(), "2".into())].into())
-                .unwrap()
+            Tokenizer::default().with_patterns(&[("1", "2")]).unwrap()
         );
     }
 
     #[test]
     fn builder_equivalence() {
         let literals = [("a", "b")];
-        let patterns = vec![(String::from("a"), String::from("b"))];
+        let patterns = vec![("a", "b")];
         let ignored_chars: FxHashSet<_> = FxHashSet::from_iter(['x']);
 
         let mut tok1 = Tokenizer::default();
         tok1.set_ignore_whitespace(true);
         tok1.set_ignored_characters(ignored_chars.clone());
         tok1.set_literals(&literals).unwrap();
-        tok1.set_patterns(patterns.clone()).unwrap();
+        tok1.set_patterns(&patterns).unwrap();
 
         let tok2 = Tokenizer::default()
             .with_ignore_whitespace(true)
             .with_ignored_characters(ignored_chars.clone())
             .with_literals(&literals)
             .unwrap()
-            .with_patterns(patterns.clone())
+            .with_patterns(&patterns)
             .unwrap();
 
-        let tok3 = Tokenizer::new(&literals, patterns, ignored_chars, true).unwrap();
+        let tok3 = Tokenizer::new(&literals, &patterns, ignored_chars, true).unwrap();
 
         assert_eq!(tok1, tok2);
         assert_eq!(tok1, tok3);
@@ -436,12 +434,12 @@ mod tests {
         let mut tok = Tokenizer::default();
         assert!(tok.patterns.is_empty());
 
-        let pattern = ("a".into(), r"\d+".into());
-        assert!(tok.set_patterns(vec![pattern.clone()]).is_ok());
+        let pattern = ("a", r"\d+");
+        assert!(tok.set_patterns(&[pattern]).is_ok());
         assert_eq!(tok.patterns.first().unwrap().1.as_str(), r"^(?:\d+)");
 
-        assert!(tok.set_patterns(vec![pattern.clone(), pattern]).is_ok());
-        assert!(tok.set_patterns(vec![("a".into(), "+".into())]).is_err());
+        assert!(tok.set_patterns(&[pattern, pattern]).is_ok());
+        assert!(tok.set_patterns(&[("a", "+")]).is_err());
     }
 
     #[test]
@@ -472,10 +470,12 @@ mod tests {
             .unwrap();
 
         if let Ok(tokens) = tok.tokenize(",[.,]").collect::<Result<Vec<_>, _>>() {
-            assert!(tokens
-                .iter()
-                .map(|t| t.name)
-                .eq("read begin_loop write read end_loop".split_whitespace()));
+            assert!(
+                tokens
+                    .iter()
+                    .map(|t| t.name)
+                    .eq("read begin_loop write read end_loop".split_whitespace())
+            );
         } else {
             panic!();
         };
@@ -556,7 +556,7 @@ mod tests {
                 ("mod", "%"),
             ])
             .unwrap()
-            .with_patterns(vec![common::INT.clone()])
+            .with_patterns(&[common::INT.clone()])
             .unwrap();
 
         for (input, output) in tests {
@@ -573,7 +573,7 @@ mod tests {
     fn line_tokenization() {
         let tok = Tokenizer::default()
             .with_ignore_whitespace(true)
-            .with_patterns(vec![common::WORD.clone()])
+            .with_patterns(&[common::WORD.clone()])
             .unwrap();
         let Ok(lines) = tok
             .tokenize_lines("a b\nc\rde")
@@ -765,7 +765,7 @@ mod tests {
     #[test]
     fn word_tokenization() {
         let tok = Tokenizer::default()
-            .with_patterns(vec![common::WORD.clone()])
+            .with_patterns(&[common::WORD.clone()])
             .unwrap();
         let tokens: Vec<_> = tok.tokenize("Hello, world!").flatten().collect();
         assert_eq!(
@@ -801,7 +801,7 @@ mod tests {
         let tok = Tokenizer::default()
             .with_literals(&[("a", "axe")])
             .unwrap()
-            .with_patterns([("b".into(), "box".into())].into())
+            .with_patterns(&[("b", "box")])
             .unwrap();
         let expected_tokens = [
             ("a", "axe", 0),
@@ -831,7 +831,7 @@ mod tests {
     #[test]
     fn backreference_pattern() {
         let tok = Tokenizer::default()
-            .with_patterns(vec![("a".into(), r"(a)b\1".into())])
+            .with_patterns(&[("a", r"(a)b\1")])
             .unwrap();
         let out: Vec<_> = tok.tokenize("abaaba").flatten().collect();
         assert_eq!(out, make_output(vec![(("a", "aba"), 0), (("a", "aba"), 3)]));

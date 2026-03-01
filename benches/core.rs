@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
-use criterion::{criterion_group, criterion_main, Criterion};
-use crossandra::{common, Tokenizer};
+use criterion::{Criterion, criterion_group, criterion_main};
+use crossandra::{Tokenizer, common};
 
 pub fn samarium(c: &mut Criterion) {
     let literals = [
@@ -88,15 +88,15 @@ pub fn samarium(c: &mut Criterion) {
     ];
     let patterns = [
         common::DOUBLE_QUOTED_STRING.clone(),
-        ("number".into(), r"[\\/]+`?[\\/]*|`[\\/]*".into()),
-        ("block_comment".into(), r"==<.*>==".into()),
-        ("line_comment".into(), r"==[^\n]*".into()),
-        ("variable".into(), r"\w+".into()),
+        ("number", r"[\\/]+`?[\\/]*|`[\\/]*"),
+        ("block_comment", r"==<.*>=="),
+        ("line_comment", r"==[^\n]*"),
+        ("variable", r"\w+"),
     ];
     let tok = Tokenizer::default()
         .with_literals(&literals)
         .unwrap()
-        .with_patterns(patterns.into())
+        .with_patterns(&patterns)
         .unwrap()
         .with_ignore_whitespace(true);
 
