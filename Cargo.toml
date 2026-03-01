@@ -8,9 +8,9 @@ repository = "https://github.com/trag1c/crossandra-rs"
 edition = "2024"
 
 [dependencies]
-fancy-regex = "0.16.2"
-rayon = "1.10.0"
-rustc-hash = "2.1.0"
+fancy-regex = "0.17.0"
+rayon = "1.11.0"
+rustc-hash = "2.1.1"
 
 [dev-dependencies]
 criterion = "0.7"
