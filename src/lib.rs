@@ -32,7 +32,7 @@ use rayon::prelude::*;
 pub mod common;
 
 mod error;
-use error::Error;
+pub use error::Error;
 
 mod stream;
 

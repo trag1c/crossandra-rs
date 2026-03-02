@@ -5,7 +5,7 @@
 Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-crossandra = "1.0.0"
+crossandra = "1.0.1"
 ```
 
 Import and use like this:
